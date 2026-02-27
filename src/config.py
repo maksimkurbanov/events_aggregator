@@ -1,8 +1,10 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from dotenv import load_dotenv
 import os
 
+from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
+
 load_dotenv()
+
 
 class Settings(BaseSettings):
     POSTGRES_HOST: str
@@ -22,13 +24,16 @@ class DevSettings(Settings):
     POSTGRES_DB: str = os.getenv("POSTGRES_DATABASE_NAME")
     POSTGRES_PORT: int = os.getenv("POSTGRES_PORT")
 
-    SERVER_HOST: str = os.getenv("STUDENT_MAKSIMKURBANOV_EVENTS_AGGREGATOR_WEB_SERVICE_HOST", "localhost")
-    SERVER_PORT: int = os.getenv("STUDENT_MAKSIMKURBANOV_EVENTS_AGGREGATOR_WEB_SERVICE_PORT", 8000)
+    SERVER_HOST: str = os.getenv(
+        "STUDENT_MAKSIMKURBANOV_EVENTS_AGGREGATOR_WEB_SERVICE_HOST", "localhost"
+    )
+    SERVER_PORT: int = os.getenv(
+        "STUDENT_MAKSIMKURBANOV_EVENTS_AGGREGATOR_WEB_SERVICE_PORT", "8000"
+    )
 
 
 # class TestSettings(Settings):
 #     pass
-
 
 
 dev_settings = DevSettings()
