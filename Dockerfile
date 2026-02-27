@@ -6,16 +6,14 @@ RUN groupadd --gid 1000 appgroup && \
 WORKDIR /app
 RUN chown appuser:appgroup /app
 
-ENV PYTHONPATH=.
-#ENV PATH="/usr/local/bin:$PATH"
+ENV PYTHONPATH=/app
 
 COPY pyproject.toml uv.lock ./
-#RUN uv sync --offline --no-index --find-links ./ --locked --no-dev
 RUN uv sync --locked --no-dev
 
 COPY --chown=appuser:appuser . /app
 
 USER appuser
 
-#CMD ["uv", "run", "python", "src/main.py"]
-CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "python", "src/main.py"]
+#CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
