@@ -8,9 +8,10 @@ dependencies = [
     "ruff>=0.15.4",
 ]
 
-[tool.uv.required-environments]
-sys_platform = "linux"
-platform_machine = "aarch64"
+[tool.uv]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
 
 [tool.ruff]
 line-length = 88
