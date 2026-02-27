@@ -6,14 +6,13 @@ RUN groupadd --gid 1000 appgroup && \
 WORKDIR /app
 RUN chown appuser:appgroup /app
 
-ENV PYTHONPATH="."
+ENV PYTHONPATH=.
 #ENV PATH="/usr/local/bin:$PATH"
-#ENV UV_LINK_MODE=copy
-#ENV UV_CACHE_DIR=app/tmp/uv_cache
 
 COPY --chown=appuser:appuser . /app
 
-RUN uv sync --offline --no-index --find-links ./offline_wheels
+#RUN uv sync --offline --no-index --find-links ./ --locked --no-dev
+RUN uv sync --locked --no-dev
 
 USER appuser
 
