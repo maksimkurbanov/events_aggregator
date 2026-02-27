@@ -8,13 +8,9 @@ dependencies = [
     "ruff>=0.15.4",
 ]
 
-
-#[build-system]
-#requires = ["hatchling"]
-#build-backend = "hatchling.build"
-#
-#[tool.hatch.build.targets.wheel]
-#packages = ["."]
+[tool.uv.required-environments]
+sys_platform = "linux"
+platform_machine = "aarch64"
 
 [tool.ruff]
 line-length = 88
