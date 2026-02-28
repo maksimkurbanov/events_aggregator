@@ -11,7 +11,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ENV EVENT_PROVIDER_URL="http://events-provider.dev-2.python-labs.ru"
-ENV LMS_API_KEY=$LMS_API_KEY
+ENV LMS_API_KEY="$LMS_API_KEY"
 ENV PYTHONPATH="/app"
 
 COPY pyproject.toml uv.lock ./
