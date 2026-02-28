@@ -14,7 +14,9 @@ def healthcheck():
 
 
 async def main():
-    config = uvicorn.Config(app=app, host="0.0.0.0", port=dev_settings.SERVER_PORT)
+    config = uvicorn.Config(
+        app=app, host="0.0.0.0", port=dev_settings.SERVER_PORT
+    )
     server = uvicorn.Server(config)
     await server.serve()
 

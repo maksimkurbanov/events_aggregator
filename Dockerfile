@@ -6,6 +6,10 @@ RUN groupadd --gid 1000 appgroup && \
 WORKDIR /app
 RUN chown appuser:appgroup /app
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client && \
+    rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONPATH=/app
 
 COPY pyproject.toml uv.lock ./
@@ -16,4 +20,3 @@ COPY --chown=appuser:appuser . /app
 USER appuser
 
 CMD ["uv", "run", "python", "src/main.py"]
-#CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
