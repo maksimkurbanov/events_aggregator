@@ -68,6 +68,8 @@ jobs:
           platforms: linux/arm64,linux/amd64
           push: true
           tags: ghcr.io/${{ steps.repo.outputs.repo }}:${{ github.sha }}
+          secrets: |
+            "LMS_API_KEY=${{ secrets.LMS_API_KEY }}"
 
   deploy:
     needs: build

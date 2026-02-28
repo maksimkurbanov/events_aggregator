@@ -10,7 +10,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends postgresql-client && \
     rm -rf /var/lib/apt/lists/*
 
-ENV PYTHONPATH=/app
+ENV EVENT_PROVIDER_URL="http://events-provider.dev-2.python-labs.ru"
+ENV PYTHONPATH="/app"
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev
