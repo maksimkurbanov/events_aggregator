@@ -1,13 +1,16 @@
-from uuid import UUID
-from sqlalchemy.dialects.postgresql import UUID as pg_uuid
-from sqlalchemy import String, DateTime as saDateTime
 from datetime import datetime
+from uuid import UUID
+
+from sqlalchemy import DateTime as saDateTime
+from sqlalchemy import String
+from sqlalchemy.dialects.postgresql import UUID as pg_uuid
 from sqlalchemy.orm import Mapped, mapped_column
+
 from src.models.base_class import Base
 
 
 class Place(Base):
-    __tablename__ = 'place'
+    __tablename__ = "place"
 
     id: Mapped[UUID] = mapped_column(pg_uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String)

@@ -41,6 +41,7 @@ class DevSettings(Settings):
     EVENT_PROVIDER_URL: str = os.getenv("EVENT_PROVIDER_URL")
     LMS_API_KEY: str = os.getenv("LMS_API_KEY")
 
+
 # class TestSettings(Settings):
 #     pass
 

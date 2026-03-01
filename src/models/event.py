@@ -1,15 +1,17 @@
+from datetime import datetime
 from typing import Any
 from uuid import UUID
+
+from sqlalchemy import JSON, Integer, String
+from sqlalchemy import DateTime as saDateTime
 from sqlalchemy.dialects.postgresql import UUID as pg_uuid
-from sqlalchemy import String, Integer, DateTime as saDateTime, ForeignKey, JSON
-from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
+
 from src.models.base_class import Base
-from src.models.place import Place
 
 
 class Event(Base):
-    __tablename__ = 'event'
+    __tablename__ = "event"
 
     id: Mapped[UUID] = mapped_column(pg_uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String)

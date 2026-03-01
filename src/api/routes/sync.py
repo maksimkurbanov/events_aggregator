@@ -1,12 +1,11 @@
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
-from src.database.database import get_db
-from src.utils.sync import run_sync
-from fastapi import APIRouter, Depends
+from src.utils.sync_service import do_sync
 
 sync_router = APIRouter()
 
+
 @sync_router.post("/api/sync/trigger")
-async def manual_sync(db: AsyncSession = Depends(get_db)):
-    await run_sync(db)
-    return {"status": "sync started"}
+async def manual_sync():
+    await do_sync(sync_type="manual")
+    return {"status": "Sync complete"}
