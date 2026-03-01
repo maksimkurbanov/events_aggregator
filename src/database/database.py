@@ -57,17 +57,17 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
     Yields:
         Session: A database session object.
     """
-    log.debug("getting database session")
+    log.debug("Getting database session")
     db = get_local_session(dev_settings.POSTGRES_DB_URL, False)()
     async with db as session:
         yield session
-    log.debug("closing database session")
+    log.debug("Closing database session")
 
 
 @asynccontextmanager
 async def get_ctx_db() -> AsyncGenerator[AsyncSession]:
-    log.debug("getting database session")
+    log.debug("Getting database session")
     db = get_local_session(dev_settings.POSTGRES_DB_URL, False)()
     async with db as session:
         yield session
-    log.debug("closing database session")
+    log.debug("Closing database session")
