@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -22,17 +22,21 @@ log = get_logger(__name__)
 class SyncService:
     def __init__(self, db):
         self.db = db
-        self.api_url = dev_settings.EVENT_PROVIDER_URL
+        self.api_url = dev_settings.EVENT_PROVIDER_URL + "api/events/"
         self.api_token = dev_settings.LMS_API_KEY
 
-    async def _get_last_changed_at(self) -> int:
+    async def _get_last_changed_at(self) -> datetime:
         result = await self.db.execute(
             select(SyncMetadata.value).where(
                 SyncMetadata.key == "last_changed_at"
             )
         )
-        row = result.scalar_one_or_none()
-        return int(row) if row else "2000-01-01"
+        last_changed_at = result.scalar_one_or_none()
+        if last_changed_at != 0:
+            return datetime.fromisoformat(last_changed_at)
+        return datetime.strptime("2000-01-01", "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+
 
     async def _update_last_changed_at(self, new_value: int) -> None:
         await self.db.execute(
@@ -58,22 +62,25 @@ class SyncService:
         )
         await self.db.commit()
 
-    async def _fetch_events(self, changed_at: int, next_url: str = None) -> Dict[str, Any]:
+    async def _fetch_events(self, changed_at: datetime, next_url: str = None) -> Dict[str, Any]:
         headers = {"x-api-key": self.api_token}
+        changed_at_date = changed_at.strftime("%Y-%m-%d")
 
         if not next_url:
-            params = {"changed_at": changed_at}
+            params = {"changed_at": changed_at_date}
+            log.debug(f"Params in fetch_events: {params}")
         else:
+            log.debug(f"URL in fetch_events: {next_url}")
             self.api_url = next_url
             params = None
 
 
         async with httpx.AsyncClient() as client:
             try:
+                log.info(f"Getting events from URL: {self.api_url}")
                 resp = await client.get(
                     self.api_url, params=params, headers=headers, timeout=10
                 )
-                log.info("Response from Events Provider", resp)
                 resp.raise_for_status()
 
 
@@ -89,19 +96,19 @@ class SyncService:
                 .values(
                     id=event["id"],
                     name=event["name"],
-                    place_id=event["place"]["id"],
-                    event_time=event["event_time"],
-                    registration_deadline=event["registration_deadline"],
+                    place=event["place"],
+                    event_time=datetime.fromisoformat(event["event_time"]),
+                    registration_deadline=datetime.fromisoformat(event["registration_deadline"]),
                     status=event["status"],
                     number_of_visitors=event["number_of_visitors"],
-                    changed_at=event["changed_at"],
-                    created_at=event["created_at"],
-                    status_changed_at=event["status_changed_at"],
+                    changed_at=datetime.fromisoformat(event["changed_at"]),
+                    created_at=datetime.fromisoformat(event["created_at"]),
+                    status_changed_at=datetime.fromisoformat(event["status_changed_at"]),
                 )
                 .on_conflict_do_update(
                     index_elements=["id"],
                     set_={
-                        "changed_at": event["changed_at"]
+                        "changed_at": datetime.fromisoformat(event["changed_at"])
                     },
                 )
             )
@@ -116,10 +123,12 @@ class SyncService:
 
         current_max = last_changed_at
         total_saved = 0
+        next_url = None
+        # last_changed_at_date = datetime.fromisoformat(last_changed_at).strftime("%Y-%m-%d")
 
         while True:
             try:
-                data = await self._fetch_events(last_changed_at)
+                data = await self._fetch_events(changed_at=last_changed_at, next_url=next_url)
             except Exception as e:
                 log.exception("Exception:")
                 await self._update_sync_metadata("error", str(e))
@@ -133,16 +142,16 @@ class SyncService:
             total_saved += len(events)
 
             # Находим максимальный changed_at в этой партии
-            batch_max = max(e["changed_at"] for e in events)
+            batch_max = max(datetime.fromisoformat(e["changed_at"]) for e in events)
             if batch_max > current_max:
                 current_max = batch_max
 
             # Проверяем наличие следующей страницы
-            next_url = data.get("next")
-            if not next_url:
+            next_url = data.get("next", "")
+            if next_url:
+                next_url = next_url.replace("http", "https")
+            else:
                 break
-
-
 
         if current_max > last_changed_at:
             await self._update_last_changed_at(current_max)
