@@ -12,12 +12,13 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     POSTGRES_PORT: int
-    POSTGRES_CONNECTION_STRING: str
+    POSTGRES_CONNECTION_STRING: str = None
 
     SERVER_HOST: str
     SERVER_PORT: int
 
     EVENT_PROVIDER_URL: str
+    LMS_API_KEY: str
 
 
 class DevSettings(Settings):
@@ -38,7 +39,7 @@ class DevSettings(Settings):
     )
 
     EVENT_PROVIDER_URL: str = os.getenv("EVENT_PROVIDER_URL")
-
+    LMS_API_KEY: str = os.getenv("LMS_API_KEY")
 
 # class TestSettings(Settings):
 #     pass

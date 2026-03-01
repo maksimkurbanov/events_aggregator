@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM astral/uv:0.9-python3.14-bookworm-slim
 
 RUN groupadd --gid 1000 appgroup && \

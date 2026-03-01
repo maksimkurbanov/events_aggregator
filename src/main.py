@@ -4,9 +4,12 @@ import uvicorn
 from fastapi import FastAPI
 
 from src.config import dev_settings
+from src.utils.sync import lifespan
+from api.routes.sync import sync_router
 
-app = FastAPI(title="Events Aggregator API")
+app = FastAPI(lifespan=lifespan, title="Events Aggregator API")
 
+app.include_router(sync_router)
 
 @app.get("/api/health", status_code=200)
 def healthcheck():
@@ -14,7 +17,7 @@ def healthcheck():
 
 
 async def main():
-    config = uvicorn.Config(app=app, host="0.0.0.0", port=dev_settings.SERVER_PORT)
+    config = uvicorn.Config(app=app, host="0.0.0.0", port=dev_settings.SERVER_PORT, reload=True)
     server = uvicorn.Server(config)
     await server.serve()
 
