@@ -139,10 +139,13 @@ class SyncService:
 
             # Check if there are more pages to parse
             next_url = data.get("next", "")
-            if next_url:
-                next_url = next_url.replace("http", "https")
-            else:
+
+            if not next_url:
                 break
+
+            # Managing redirects for local dev environment
+            if "dev-2" in dev_settings.EVENT_PROVIDER_URL:
+                next_url = next_url.replace("http", "https")
 
         if current_max > last_changed_at:
             last_changed_at = current_max
