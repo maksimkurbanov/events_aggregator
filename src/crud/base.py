@@ -1,6 +1,7 @@
 from typing import TypeVar
 
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.log import get_logger
@@ -19,13 +20,13 @@ class CRUDRepository:
 
     async def get_one(self, db: AsyncSession, *args, **kwargs) -> ORMModel | None:
         log.debug("retrieving one record for %s", self._model.__name__)
-        stmt = db.select(self._model).filter(*args).filter_by(**kwargs)
+        stmt = select(self._model).filter(*args).filter_by(**kwargs)
         query_result = await db.execute(stmt)
         return query_result.scalars().first()
 
     async def get_many(self, db: AsyncSession, *args, **kwargs) -> list[ORMModel]:
         log.debug("retrieving many records for %s", self._model.__name__)
-        stmt = db.select(self._model).filter(*args).filter_by(**kwargs)
+        stmt = select(self._model).filter(*args).filter_by(**kwargs)
         query_result = await db.execute(stmt)
         return query_result.scalars().all()
 

@@ -6,6 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 
+from src.api.routes.events import events_router
 from src.api.routes.health import health_router
 from src.api.routes.sync import sync_router
 from src.config import dev_settings
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan, title="Events Aggregator API")
 app.include_router(sync_router)
 app.include_router(health_router)
+app.include_router(events_router)
 
 
 async def main():
