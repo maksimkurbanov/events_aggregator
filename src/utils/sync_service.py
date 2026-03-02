@@ -118,7 +118,12 @@ class SyncService:
                 )
             except Exception as e:
                 log.exception("Exception:")
-                await self._update_sync_metadata("error", str(e))
+                await self._update_sync_metadata(
+                    status="error",
+                    message=str(e),
+                    last_changed_at=last_changed_at,
+                    sync_type=sync_type,
+                )
                 return
 
             events = data.get("results", [])
@@ -146,6 +151,9 @@ class SyncService:
             log.info("No new events since last sync")
 
         await self._update_sync_metadata(
-            "success", f"Synced {total_saved} events", last_changed_at, sync_type
+            status="success",
+            message=f"Synced {total_saved} events",
+            last_changed_at=last_changed_at,
+            sync_type=sync_type,
         )
         log.info(f"Sync complete, parsed {total_saved} events")
