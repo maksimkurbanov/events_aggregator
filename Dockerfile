@@ -8,7 +8,7 @@ WORKDIR /app
 RUN chown appuser:appgroup /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client && \
+    apt-get install -y --no-install-recommends postgresql-client curl && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONPATH="/app"
