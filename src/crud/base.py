@@ -19,20 +19,35 @@ class CRUDRepository:
         self._name = model.__name__
 
     async def get_one(self, db: AsyncSession, *args, **kwargs) -> ORMModel | None:
-        log.debug("retrieving one record for %s", self._model.__name__)
+        log.debug("Retrieving one record for %s", self._model.__name__)
         stmt = select(self._model).filter(*args).filter_by(**kwargs)
         query_result = await db.execute(stmt)
         return query_result.scalars().first()
 
-    async def get_many(self, db: AsyncSession, *args, **kwargs) -> list[ORMModel]:
-        log.debug("retrieving many records for %s", self._model.__name__)
-        stmt = select(self._model).filter(*args).filter_by(**kwargs)
+    async def get_many(
+        self,
+        db: AsyncSession,
+        *args,
+        order_by: str | None,
+        offset: int = 0,
+        limit: int = 100,
+        **kwargs,
+    ) -> list[ORMModel]:
+        log.debug("Retrieving many records for %s", self._model.__name__)
+        stmt = (
+            select(self._model)
+            .filter(*args)
+            .filter_by(**kwargs)
+            .order_by(order_by)
+            .offset(offset)
+            .limit(limit)
+        )
         query_result = await db.execute(stmt)
         return query_result.scalars().all()
 
     async def create(self, db: AsyncSession, obj_create: CreateSchemaType) -> ORMModel:
         log.debug(
-            "creating record for %s with data %s",
+            "Creating record for %s with data %s",
             str(self._model.__name__),
             obj_create.model_dump(),
         )
@@ -47,7 +62,7 @@ class CRUDRepository:
         self, db: AsyncSession, db_obj: ORMModel, obj_update: UpdateSchemaType
     ) -> ORMModel:
         log.debug(
-            "updating record for %s with data %s",
+            "Updating record for %s with data %s",
             self._model.__name__,
             obj_update.model_dump(),
         )
@@ -59,7 +74,7 @@ class CRUDRepository:
         return db_obj
 
     async def delete(self, db: AsyncSession, db_obj: ORMModel) -> None:
-        log.debug("deleting record for %s with id %s", self._model.__name__, db_obj.id)
+        log.debug("Deleting record for %s with id %s", self._model.__name__, db_obj.id)
         await db.delete(db_obj)
         await db.commit()
         return db_obj
