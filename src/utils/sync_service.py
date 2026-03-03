@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -11,6 +11,7 @@ from src.database.database import get_ctx_db
 from src.log import get_logger
 from src.models.event import Event
 from src.models.sync_metadata import SyncMetadata
+from src.utils.datetime_converter import str_to_dt_utc
 
 log = get_logger(__name__)
 
@@ -33,7 +34,7 @@ class SyncService:
         result = await self.db.execute(stmt)
         last_changed_at = result.scalar_one_or_none()
         if not last_changed_at:
-            return datetime.strptime("2000-01-01", "%Y-%m-%d").replace(tzinfo=UTC)
+            return str_to_dt_utc("2000-01-01")
         return last_changed_at
 
     async def _update_sync_metadata(
@@ -55,8 +56,8 @@ class SyncService:
         changed_at_date = changed_at.strftime("%Y-%m-%d")
 
         # If next_url wasnt provided, use changed_at_date as query parameter,
-        # otherwise disregard changed_at and use 'next' URL string (which includes
-        # changed_at and cursor query parameters) provided by API
+        # otherwise disregard changed_at and use 'next' URL string provided by API, which includes
+        # changed_at and cursor query parameters
         if not next_url:
             params = {"changed_at": changed_at_date}
         else:

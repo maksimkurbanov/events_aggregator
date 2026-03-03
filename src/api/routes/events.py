@@ -1,5 +1,5 @@
-from datetime import UTC, datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,47 +8,64 @@ from src.crud.events import events_crud
 from src.database.database import get_db
 from src.log import get_logger
 from src.models.event import Event
-from src.schemas.event import EventsRequest, EventsResponse, SingleEventResponse
+from src.schemas.event import (
+    PaginatedEventResponse,
+    PaginatedEventsRequest,
+    PaginatedEventsResponse,
+    SingleEventResponse,
+)
+from src.utils.datetime_converter import str_to_dt_utc
 
 log = get_logger(__name__)
-events_router = APIRouter(prefix="/api", tags=["events"])
+events_router = APIRouter(prefix="/api", tags=["Events"])
 
 
-@events_router.get("/events", response_model=EventsResponse)
+@events_router.get("/events", response_model=PaginatedEventsResponse)
 async def get_events(
     request: Request,
-    request_query_params: Annotated[EventsRequest, Depends()],
+    query_params: Annotated[PaginatedEventsRequest, Depends()],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    date_from = request_query_params.date_from
-    page = request_query_params.page
-    page_size = request_query_params.page_size
+    date_from = str_to_dt_utc(query_params.date_from)
+    page = query_params.page
+    page_size = query_params.page_size
     offset = (page - 1) * page_size
-    datetime_date_from = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=UTC)
+
     count, events = await events_crud.get_many_with_count(
         db,
-        Event.event_time >= datetime_date_from,
+        Event.event_time >= date_from,
         order_by=Event.event_time,
         offset=offset,
         limit=page_size,
     )
 
-    base_url = request.url_for("get_events")
-    next_url = None
-    prev_url = None
+    req_url = request.url_for("get_events")
+    query_p = request.query_params
+
+    # If 'page' isnt already present in query params, inject 'page=1' for correct pagination
+    query_p._dict.setdefault("page", 1)
+    base_url_with_page = req_url.include_query_params(**query_p)
+    next_url, prev_url = None, None
 
     if offset + page_size < count:
-        next_url = (
-            f"{base_url}?date_from={date_from}&page={page + 1}&page_size={page_size}"
-        )
-    if page > 1:
-        prev_url = (
-            f"{base_url}?date_from={date_from}&page={page - 1}&page_size={page_size}"
-        )
+        next_url = str(base_url_with_page).replace(f"page={page}", f"page={page + 1}")
 
-    return EventsResponse(
+    if page > 1:
+        prev_url = str(base_url_with_page).replace(f"page={page}", f"page={page - 1}")
+
+    return PaginatedEventsResponse(
         count=count,
         next=next_url,
         previous=prev_url,
-        results=[SingleEventResponse.model_validate(event) for event in events],
+        results=[PaginatedEventResponse.model_validate(event) for event in events],
     )
+
+
+@events_router.get("/events/{event_id}", response_model=SingleEventResponse)
+async def get_single_event(
+    event_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]
+):
+    return await events_crud.get_one(db, Event.id == event_id)
+
+
+# @events_router.get("/events/{event_id}/seats", response_model=)

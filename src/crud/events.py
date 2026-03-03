@@ -14,7 +14,7 @@ class EventsRepository(CRUDRepository):
         offset: int = 0,
         limit: int = 100,
         **kwargs,
-    ) -> tuple[int, list[ORMModel]] | None:
+    ) -> tuple[int | None, list[ORMModel]]:
         filtering_stmt = select(self._model).filter(*args).filter_by(**kwargs)
         count_stmt = select(func.count()).select_from(filtering_stmt.subquery())
         result = await db.execute(count_stmt)
