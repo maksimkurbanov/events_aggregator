@@ -11,8 +11,8 @@ from src.api.routes.health import health_router
 from src.api.routes.sync import sync_router
 from src.config import dev_settings
 from src.database.database import get_ctx_db, get_engine
-from src.log import get_logger
 from src.models.base_class import Base
+from src.utils.log import get_logger
 from src.utils.sync_service import do_sync
 
 log = get_logger(__name__)

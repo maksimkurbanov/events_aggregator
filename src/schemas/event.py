@@ -1,13 +1,32 @@
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints
 
-from src.schemas.place import PlaceResponse, PlaceWithSeatsResponse
+from src.schemas.place import PlaceResponse, PlaceUpdate, PlaceWithSeatsResponse
 
 
 class Event(BaseModel):
     pass
+
+
+class EventUpdate(BaseModel):
+    name: str
+    place: PlaceUpdate
+    event_time: datetime
+    registration_deadline: datetime
+    status: str
+    number_of_visitors: int = Field(ge=0)
+    changed_at: datetime
+    status_changed_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EventCreate(EventUpdate):
+    id: UUID
+    created_at: datetime
 
 
 class PaginatedEventsRequest(BaseModel):
@@ -47,4 +66,13 @@ class SingleEventResponse(PaginatedEventResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
-# class EventSeatsResponse(BaseModel):
+SeatStr = Annotated[str, StringConstraints(pattern=r"^[A-Z][1-9]\d*$")]
+
+
+class EventSeatsFromProvider(BaseModel):
+    seats: list[SeatStr]
+
+
+class EventSeatsResponse(BaseModel):
+    id: UUID
+    available_seats: list[SeatStr]

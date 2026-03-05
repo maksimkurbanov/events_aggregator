@@ -2,162 +2,90 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from sqlalchemy import func, insert, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import dev_settings
+from src.crud.events import events_crud
+from src.crud.sync_metadata import sync_crud
 from src.database.database import get_ctx_db
-from src.log import get_logger
-from src.models.event import Event
+from src.external.events_provider import EventsPaginator, EventsProviderClient
 from src.models.sync_metadata import SyncMetadata
+from src.schemas.event import EventCreate
+from src.schemas.sync_metadata import SyncMetadataCreate
 from src.utils.datetime_converter import str_to_dt_utc
+from src.utils.log import get_logger
 
 log = get_logger(__name__)
 
 
-async def do_sync(sync_type: str = "scheduled", db: AsyncSession = get_ctx_db) -> None:
+async def do_sync(
+    sync_type: str = "scheduled", db: AsyncSession = get_ctx_db
+) -> dict[str, str]:
     log.info(f"Running sync of type: {sync_type}")
-    async with db() as session:
-        service = SyncService(session)
-        await service.sync(sync_type)
+    async with db() as session, EventsProviderClient() as client:
+        service = SyncService(session, client)
+        return await service.sync(sync_type)
 
 
 class SyncService:
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, client: EventsProviderClient) -> None:
         self.db = db
-        self.api_url = dev_settings.EVENT_PROVIDER_URL + "api/events/"
-        self.api_token = dev_settings.LMS_API_KEY
+        self.client = client
 
     async def _get_last_changed_at(self) -> datetime:
-        stmt = select(func.max(SyncMetadata.last_changed_at))
-        result = await self.db.execute(stmt)
-        last_changed_at = result.scalar_one_or_none()
+        last_changed_at = await sync_crud.get_max_last_changed_at(self.db)
         if not last_changed_at:
             return str_to_dt_utc("2000-01-01")
         return last_changed_at
 
     async def _update_sync_metadata(
         self, status: str, message: str, last_changed_at: datetime, sync_type: str
-    ) -> None:
-        await self.db.execute(
-            insert(SyncMetadata).values(
-                status=f"{status}: {message}",
-                last_changed_at=last_changed_at,
-                type=sync_type,
-            )
-        )
-        await self.db.commit()
-
-    async def _fetch_events(
-        self, changed_at: datetime, next_url: str | None = None
-    ) -> dict[str, Any]:
-        headers = {"x-api-key": self.api_token}
-        changed_at_date = changed_at.strftime("%Y-%m-%d")
-
-        # If next_url wasnt provided, use changed_at_date as query parameter,
-        # otherwise disregard changed_at and use 'next' URL string provided by API, which includes
-        # changed_at and cursor query parameters
-        if not next_url:
-            params = {"changed_at": changed_at_date}
-        else:
-            self.api_url = next_url
-            params = None
-
-        async with httpx.AsyncClient() as client:
-            try:
-                resp = await client.get(
-                    self.api_url, params=params, headers=headers, timeout=10
-                )
-                resp.raise_for_status()
-                return resp.json()
-            except httpx.HTTPError as e:
-                log.error(f"API request failed: {e}")
-                raise
+    ) -> SyncMetadata:
+        upd_dict = {
+            "status": f"{status}: {message}",
+            "last_changed_at": last_changed_at,
+            "type": sync_type,
+        }
+        updated_model = SyncMetadataCreate.model_validate(upd_dict)
+        return await sync_crud.create(self.db, updated_model)
 
     async def _save_events(self, events: list[dict[str, Any]]) -> None:
-        for event in events:
-            stmt = (
-                pg_insert(Event)
-                .values(
-                    id=event["id"],
-                    name=event["name"],
-                    place=event["place"],
-                    event_time=datetime.fromisoformat(event["event_time"]),
-                    registration_deadline=datetime.fromisoformat(
-                        event["registration_deadline"]
-                    ),
-                    status=event["status"],
-                    number_of_visitors=event["number_of_visitors"],
-                    changed_at=datetime.fromisoformat(event["changed_at"]),
-                    created_at=datetime.fromisoformat(event["created_at"]),
-                    status_changed_at=datetime.fromisoformat(
-                        event["status_changed_at"]
-                    ),
-                )
-                .on_conflict_do_update(
-                    index_elements=["id"],
-                    set_={"changed_at": datetime.fromisoformat(event["changed_at"])},
-                )
-            )
-            await self.db.execute(stmt)
-        await self.db.commit()
+        event_creates = [EventCreate.model_validate(event) for event in events]
+
+        if event_creates:
+            await events_crud.bulk_upsert(self.db, event_creates)
+
         log.info(f"Parsed {len(events)} events")
 
-    async def sync(self, sync_type: str) -> None:
+    async def sync(self, sync_type: str) -> dict[str, str]:
         last_changed_at = await self._get_last_changed_at()
         log.info(f"Currently saved last_changed_at: {last_changed_at}")
-
+        paginator = EventsPaginator(self.client, last_changed_at)
         current_max = last_changed_at
         total_saved = 0
-        next_url = None
 
-        while True:
-            try:
-                data = await self._fetch_events(
-                    changed_at=last_changed_at, next_url=next_url
-                )
-            except Exception as e:
-                log.exception("Exception:")
-                await self._update_sync_metadata(
-                    status="error",
-                    message=str(e),
-                    last_changed_at=last_changed_at,
-                    sync_type=sync_type,
-                )
-                return
-
-            events = data.get("results", [])
-            if not events:
-                break
-
-            await self._save_events(events)
-            total_saved += len(events)
-
-            # Get max 'changed_at' of events on current page
-            batch_max = max(datetime.fromisoformat(e["changed_at"]) for e in events)
-            current_max = max(current_max, batch_max)
-
-            # Check if there are more pages to parse
-            next_url = data.get("next", "")
-
-            if not next_url:
-                break
-
-            # Managing redirects for local dev environment
-            if "dev-2" in dev_settings.EVENT_PROVIDER_URL:
-                next_url = next_url.replace("http", "https")
-
-        if current_max > last_changed_at:
-            last_changed_at = current_max
-            log.info(f"last_changed_at updated to {current_max}")
+        try:
+            async for events in paginator:
+                await self._save_events(events)
+                total_saved += len(events)
+                current_max = max(current_max, paginator.page_max)
+        except httpx.HTTPError as e:
+            await self._update_sync_metadata(
+                status="failed",
+                message=str(e),
+                last_changed_at=current_max,
+                sync_type=sync_type,
+            )
+            return {"status": "failed"}
         else:
-            log.info("No new events since last sync")
-
-        await self._update_sync_metadata(
-            status="success",
-            message=f"Synced {total_saved} events",
-            last_changed_at=last_changed_at,
-            sync_type=sync_type,
-        )
-        log.info(f"Sync complete, parsed {total_saved} events")
+            await self._update_sync_metadata(
+                status="success",
+                message=f"Events synced: {total_saved}",
+                last_changed_at=current_max,
+                sync_type=sync_type,
+            )
+            if current_max > last_changed_at:
+                log.info(f"last_changed_at updated to {current_max}")
+            else:
+                log.info("No new events since last sync")
+            log.info(f"Sync complete, events parsed: {total_saved}")
+            return {"status": "success"}

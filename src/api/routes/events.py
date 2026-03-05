@@ -1,20 +1,24 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.crud.events import events_crud
 from src.database.database import get_db
-from src.log import get_logger
+from src.external.events_provider import EventsProviderClient
 from src.models.event import Event
 from src.schemas.event import (
+    EventSeatsFromProvider,
+    EventSeatsResponse,
     PaginatedEventResponse,
     PaginatedEventsRequest,
     PaginatedEventsResponse,
     SingleEventResponse,
 )
 from src.utils.datetime_converter import str_to_dt_utc
+from src.utils.log import get_logger
 
 log = get_logger(__name__)
 events_router = APIRouter(prefix="/api", tags=["Events"])
@@ -65,7 +69,29 @@ async def get_events(
 async def get_single_event(
     event_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    return await events_crud.get_one(db, Event.id == event_id)
+    event = await events_crud.get_one(db, Event.id == event_id)
+    if not event:
+        raise HTTPException(
+            status_code=404, detail=f"Event with ID {event_id} not found"
+        )
+    return event
 
 
-# @events_router.get("/events/{event_id}/seats", response_model=)
+@events_router.get("/events/{event_id}/seats", response_model=EventSeatsResponse)
+async def get_seats(
+    event_id: UUID,
+    client: Annotated[AsyncClient, Depends(EventsProviderClient)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    event = await events_crud.get_one(db, Event.id == event_id)
+    if not event:
+        raise HTTPException(
+            status_code=404, detail=f"Event with ID {event_id} not found"
+        )
+    if event.status != "published":
+        raise HTTPException(
+            status_code=403, detail=f"Event with ID {event_id} not published"
+        )
+    resp = await client.get_seats(event.id)
+    resp_validated = EventSeatsFromProvider.model_validate(resp)
+    return {"id": event.id, "available_seats": resp_validated.seats}
