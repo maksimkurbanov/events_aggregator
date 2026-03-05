@@ -123,13 +123,13 @@ class EventsPaginator:
         self.page_max = max(datetime.fromisoformat(e["changed_at"]) for e in events)
 
         # Check if there are more pages to parse
-        next_url = data.get("next", "")
-        log.debug(f"Next URL in current paginator's batch: {next_url}")
-        if not next_url:
+        self.next_url = data.get("next", "")
+        log.debug(f"Next URL in current paginator's batch: {self.next_url}")
+        if not self.next_url:
             self._has_more = False
 
         # Managing redirects for local dev environment
-        if next_url and "dev-2" in dev_settings.EVENT_PROVIDER_URL:
-            self.next_url = next_url.replace("http", "https")
+        if self.next_url and "dev-2" in dev_settings.EVENT_PROVIDER_URL:
+            self.next_url = self.next_url.replace("http", "https")
 
         return events
