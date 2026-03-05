@@ -81,7 +81,7 @@ class SyncService:
         if event_creates:
             await events_crud.bulk_upsert(self.db, event_creates)
 
-        log.info(f"Parsed {len(events)} events")
+        log.debug(f"Parsed {len(events)} events")
 
     async def sync(self, sync_type: str) -> dict[str, str]:
         last_changed_at = await self._get_last_changed_at()

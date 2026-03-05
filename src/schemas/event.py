@@ -74,5 +74,11 @@ class EventSeatsFromProvider(BaseModel):
 
 
 class EventSeatsResponse(BaseModel):
-    id: UUID
+    event_id: UUID
     available_seats: list[SeatStr]
+
+
+class EventSeatsCacheUpdate(BaseModel):
+    event_id: UUID
+    seats: list[SeatStr]
+    updated_at: datetime

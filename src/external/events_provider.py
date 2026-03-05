@@ -82,6 +82,10 @@ class EventsProviderClient(BaseEventsProviderClient):
         return response.json()
 
     async def get_seats(self, event_id) -> list[str]:
+        log.debug(
+            "Establishing connection to Events Provider API: Getting seats for event: %s",
+            event_id,
+        )
         response = await self.client.get(self._build_url(event_id, "seats"))
         response.raise_for_status()
         return response.json()
@@ -93,3 +97,8 @@ class EventsProviderClient(BaseEventsProviderClient):
     async def __aexit__(self, *args):
         log.debug("Closing events provider httpx client")
         await self.client.aclose()
+
+
+async def get_events_provider_client() -> EventsProviderClient:
+    async with EventsProviderClient() as client:
+        yield client

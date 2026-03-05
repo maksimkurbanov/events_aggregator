@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -6,11 +7,15 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.crud.events import events_crud
+from src.crud.seats_cache import seats_cache_crud
 from src.database.database import get_db
-from src.external.events_provider import EventsProviderClient
+from src.external.events_provider import (
+    get_events_provider_client,
+)
 from src.models.event import Event
+from src.models.seats_cache import EventSeatsCache
 from src.schemas.event import (
-    EventSeatsFromProvider,
+    EventSeatsCacheUpdate,
     EventSeatsResponse,
     PaginatedEventResponse,
     PaginatedEventsRequest,
@@ -80,7 +85,7 @@ async def get_single_event(
 @events_router.get("/events/{event_id}/seats", response_model=EventSeatsResponse)
 async def get_seats(
     event_id: UUID,
-    client: Annotated[AsyncClient, Depends(EventsProviderClient)],
+    client: Annotated[AsyncClient, Depends(get_events_provider_client)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     event = await events_crud.get_one(db, Event.id == event_id)
@@ -92,6 +97,21 @@ async def get_seats(
         raise HTTPException(
             status_code=403, detail=f"Event with ID {event_id} not published"
         )
-    resp = await client.get_seats(event.id)
-    resp_validated = EventSeatsFromProvider.model_validate(resp)
-    return {"id": event.id, "available_seats": resp_validated.seats}
+
+    seats = await seats_cache_crud.get_one(
+        db,
+        EventSeatsCache.event_id == event_id,
+        EventSeatsCache.updated_at >= datetime.now(UTC) - timedelta(seconds=30),
+    )
+    if not seats:
+        data_from_provider = await client.get_seats(event.id)
+        print(type(data_from_provider))
+        print(data_from_provider)
+        data_from_provider.update({
+            "event_id": event_id,
+            "updated_at": datetime.now(UTC),
+        })
+        seats = EventSeatsCacheUpdate.model_validate(data_from_provider)
+        await seats_cache_crud.upsert(db, seats, "event_id")
+
+    return {"event_id": seats.event_id, "available_seats": seats.seats}

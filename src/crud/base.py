@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.utils.log import get_logger
@@ -40,7 +41,8 @@ class CRUDRepository:
         stmt = select(self._model).filter(*args).filter_by(**kwargs)
         query_result = await db.execute(stmt)
         obj = query_result.scalars().first()
-        log.debug(f"Query result for get_one: {obj}")
+        if obj:
+            log.debug(f"Query result for get_one: {obj.__dict__}")
         return obj
 
     async def get_many(
@@ -87,6 +89,24 @@ class CRUDRepository:
         await db.commit()
         await db.refresh(db_obj)
         return db_obj
+
+    async def upsert(
+        self, db: AsyncSession, obj_in: UpdateSchemaType, id_col
+    ) -> ORMModel:
+        """
+        Insert or update an event based on its id column name (use any Primary Key).
+        obj_in must contain all fields, including id.
+        Returns the ORM object after the operation.
+        """
+        data = obj_in.model_dump()
+        log.debug(f"Updating record for {self._name} with data {data}")
+        stmt = pg_insert(self._model).values(**data)
+        # On conflict (=existing rows) update all columns except ID (masked behind id_col for compatibility
+        # with different models) with values passed in obj_in
+        update_data = {k: v for k, v in data.items() if k != id_col}
+        stmt = stmt.on_conflict_do_update(index_elements=[id_col], set_=update_data)
+        await db.execute(stmt)
+        await db.commit()
 
     async def delete(self, db: AsyncSession, db_obj: ORMModel) -> None:
         log.debug(f"Deleting record for {self._name} with id {db_obj.id}")

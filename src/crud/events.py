@@ -29,20 +29,6 @@ class EventsRepository(CRUDRepository):
         )
         return count, paginated_events
 
-    async def upsert(self, db: AsyncSession, obj_in: EventCreate) -> Event:
-        """
-        Insert or update an event based on its id.
-        obj_in must contain all fields, including id.
-        Returns the ORM object after the operation.
-        """
-        data = obj_in.model_dump()
-        stmt = pg_insert(self._model).values(**data)
-        # On conflict (=existing rows) update all columns except 'id' with new, freshly-fetched values
-        update_data = {k: v for k, v in data.items() if k != "id"}
-        stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_data)
-        await db.execute(stmt)
-        await db.commit()
-
     async def bulk_upsert(
         self, db: AsyncSession, objs_in: list[EventCreate]
     ) -> list[Event]:

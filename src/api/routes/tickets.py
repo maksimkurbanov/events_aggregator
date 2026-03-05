@@ -3,4 +3,7 @@ from fastapi import APIRouter
 ticket_router = APIRouter(prefix="api", tags=["Tickets"])
 
 # @ticket_router.post("/tickets", response_model=)
-# async def buy_ticket()
+# async def buy_ticket(
+#     ticket_data: BuyTicket,
+#     client: Annotated[AsyncClient, Depends(EventsProviderClient)]
+# ):
