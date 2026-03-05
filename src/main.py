@@ -5,6 +5,7 @@ import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
+from sqlalchemy.sql.expression import text
 
 from src.api.routes.events import events_router
 from src.api.routes.health import health_router
@@ -12,8 +13,9 @@ from src.api.routes.sync import sync_router
 from src.config import dev_settings
 from src.database.database import get_ctx_db, get_engine
 from src.models.base_class import Base
+from src.utils.create_lock_key import create_lock_key
 from src.utils.log import get_logger
-from src.utils.sync_service import do_sync
+from src.utils.sync_service import do_sync_with_lock
 
 log = get_logger(__name__)
 scheduler = AsyncIOScheduler()
@@ -23,17 +25,25 @@ scheduler = AsyncIOScheduler()
 async def lifespan(app: FastAPI):
     # Startup: create tables, start scheduler
     engine = get_engine(dev_settings.POSTGRES_DB_URL, echo=False)
+    app.state.engine = engine
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        lock_key = create_lock_key("create_table_schemas")
+        result = await conn.execute(
+            text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": lock_key}
+        )
+        lock_acquired = result.scalar()
+        if lock_acquired:
+            await conn.run_sync(Base.metadata.create_all)
+        else:
+            log.info("Table creation lock held by another process – skipping")
 
     # Schedule daily sync at 2 AM
     scheduler.add_job(
-        do_sync,
+        do_sync_with_lock,
         CronTrigger(hour=2, minute=0),
         max_instances=1,
-        args=["scheduled", get_ctx_db],
+        args=[app, "scheduled", get_ctx_db],
     )
-    # scheduler.add_job(do_sync, 'interval', seconds=5, args=["scheduled", get_ctx_db])
     scheduler.start()
     log.info("Scheduler started")
     yield

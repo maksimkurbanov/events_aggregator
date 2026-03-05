@@ -2,24 +2,51 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.expression import text
 
+from src.config import dev_settings
 from src.crud.events import events_crud
 from src.crud.sync_metadata import sync_crud
 from src.database.database import get_ctx_db
-from src.external.events_provider import EventsPaginator, EventsProviderClient
+from src.external.events_provider import EventsProviderClient
 from src.models.sync_metadata import SyncMetadata
 from src.schemas.event import EventCreate
 from src.schemas.sync_metadata import SyncMetadataCreate
+from src.utils.create_lock_key import create_lock_key
 from src.utils.datetime_converter import str_to_dt_utc
 from src.utils.log import get_logger
 
 log = get_logger(__name__)
 
 
-async def do_sync(
-    sync_type: str = "scheduled", db: AsyncSession = get_ctx_db
-) -> dict[str, str]:
+async def do_sync_with_lock(
+    app: FastAPI, sync_type: str = "scheduled", db: AsyncSession = get_ctx_db
+):
+    """Wrapper that acquires a PostgreSQL advisory lock before running the actual sync."""
+    engine = app.state.engine
+    lock_key = create_lock_key("daily_events_sync")
+
+    async with engine.connect() as lock_conn:
+        result = await lock_conn.execute(
+            text("SELECT pg_try_advisory_lock(:key)"), {"key": lock_key}
+        )
+        lock_acquired = result.scalar()
+
+        if not lock_acquired:
+            log.info("Daily events sync already running elsewhere, skipping")
+            return
+
+        try:
+            return await do_sync(sync_type, db)
+        finally:
+            await lock_conn.execute(
+                text("SELECT pg_advisory_unlock(:key)"), {"key": lock_key}
+            )
+
+
+async def do_sync(sync_type: str, db: AsyncSession) -> dict[str, str]:
     log.info(f"Running sync of type: {sync_type}")
     async with db() as session, EventsProviderClient() as client:
         service = SyncService(session, client)
@@ -50,7 +77,6 @@ class SyncService:
 
     async def _save_events(self, events: list[dict[str, Any]]) -> None:
         event_creates = [EventCreate.model_validate(event) for event in events]
-        log.debug(f"Saving {len(event_creates)} events")
 
         if event_creates:
             await events_crud.bulk_upsert(self.db, event_creates)
@@ -90,3 +116,43 @@ class SyncService:
                 log.info("No new events since last sync")
             log.info(f"Sync complete, events parsed: {total_saved}")
             return {"status": "success"}
+
+
+class EventsPaginator:
+    def __init__(
+        self,
+        client: EventsProviderClient,
+        last_changed_at: datetime | None = None,
+    ) -> None:
+        self.client = client
+        self.last_changed_at = last_changed_at
+        self.next_url: str | None = None
+        self._has_more: bool = True
+        self.page_max = None
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._has_more:
+            raise StopAsyncIteration
+
+        data = await self.client.get_events(self.last_changed_at, self.next_url)
+        events = data.get("results", [])
+
+        if not events:
+            raise StopAsyncIteration
+
+        # Get max 'changed_at' of events on current page
+        self.page_max = max(datetime.fromisoformat(e["changed_at"]) for e in events)
+
+        # Check if there are more pages to parse
+        self.next_url = data.get("next", "")
+        if not self.next_url:
+            self._has_more = False
+
+        # Managing redirects for local dev environment
+        if self.next_url and "dev-2" in dev_settings.EVENT_PROVIDER_URL:
+            self.next_url = self.next_url.replace("http", "https")
+
+        return events

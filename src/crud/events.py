@@ -54,7 +54,6 @@ class EventsRepository(CRUDRepository):
             return []
 
         rows = [obj.model_dump() for obj in objs_in]
-        log.debug(f"Upserting {len(rows)} events")
         stmt = pg_insert(self._model).values(rows)
 
         # On conflict (=existing rows) update all columns except 'id' with new, freshly-fetched values
@@ -65,9 +64,7 @@ class EventsRepository(CRUDRepository):
         stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_data)
 
         await db.execute(stmt)
-        log.debug("Upsert stmt executed")
         await db.commit()
-        log.debug("Commit to db done")
 
         # Retrieve the full ORM objects for the affected ids
         # ids = result.scalars().all()
