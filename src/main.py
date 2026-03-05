@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 
     # Schedule daily sync at 2 AM
     scheduler.add_job(
-        do_sync, CronTrigger(hour=2, minute=0), args=["scheduled", get_ctx_db]
+        do_sync, CronTrigger(hour=2, minute=0), max_instances=1, args=["scheduled", get_ctx_db]
     )
     # scheduler.add_job(do_sync, 'interval', seconds=5, args=["scheduled", get_ctx_db])
     scheduler.start()
