@@ -36,7 +36,7 @@ class EventsRepository(CRUDRepository):
         Returns the ORM object after the operation.
         """
         data = obj_in.model_dump()
-        stmt = pg_insert(Event).values(**data)
+        stmt = pg_insert(self._model).values(**data)
         # On conflict (=existing rows) update all columns except 'id' with new, freshly-fetched values
         update_data = {k: v for k, v in data.items() if k != "id"}
         stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_data)
@@ -53,12 +53,9 @@ class EventsRepository(CRUDRepository):
         if not objs_in:
             return []
 
-        rows = []
-        for obj in objs_in:
-            data = obj.model_dump()
-            rows.append(data)
-
-        stmt = pg_insert(Event).values(rows)
+        rows = [obj.model_dump() for obj in objs_in]
+        log.debug(f"Upserting {len(rows)} events")
+        stmt = pg_insert(self._model).values(rows)
 
         # On conflict (=existing rows) update all columns except 'id' with new, freshly-fetched values
         update_data = {
@@ -68,7 +65,9 @@ class EventsRepository(CRUDRepository):
         stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_data)
 
         await db.execute(stmt)
+        log.debug(f"Upsert stmt executed")
         await db.commit()
+        log.debug(f"Commit to db done")
 
         # Retrieve the full ORM objects for the affected ids
         # ids = result.scalars().all()

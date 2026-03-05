@@ -34,7 +34,7 @@ class SyncService:
     async def _get_last_changed_at(self) -> datetime:
         last_changed_at = await sync_crud.get_max_last_changed_at(self.db)
         if not last_changed_at:
-            return str_to_dt_utc("2000-01-01")
+            last_changed_at = str_to_dt_utc("2000-01-01")
         return last_changed_at
 
     async def _update_sync_metadata(
@@ -50,6 +50,7 @@ class SyncService:
 
     async def _save_events(self, events: list[dict[str, Any]]) -> None:
         event_creates = [EventCreate.model_validate(event) for event in events]
+        log.debug(f"Saving {len(event_creates)} events")
 
         if event_creates:
             await events_crud.bulk_upsert(self.db, event_creates)

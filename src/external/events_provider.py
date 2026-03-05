@@ -22,7 +22,10 @@ class BaseEventsProviderClient:
         return headers
 
     def _build_url(self, *args, **kwargs) -> str:
-        """Construct full URL to Events_Provider API endpoints"""
+        """
+        Construct full URL to Events_Provider API endpoints:
+        use args as path parameters, kwargs as query parameters
+        """
         args_str = "/".join(map(str, args)) + "/" if args else ""
         kwargs_str = (
             "?" + "&".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
@@ -50,6 +53,7 @@ class EventsProviderClient(BaseEventsProviderClient):
         if not next_url:
             next_url = self._build_url(changed_at=changed_at_date)
         try:
+            log.debug(f"{next_url=}")
             response = await self.client.get(next_url)
             response.raise_for_status()
             return response.json()
@@ -95,11 +99,10 @@ class EventsPaginator:
         self,
         client: EventsProviderClient,
         last_changed_at: datetime | None = None,
-        next_url: str | None = None,
     ) -> None:
         self.client = client
         self.last_changed_at = last_changed_at
-        self.next_url = next_url
+        self.next_url: str | None = None
         self._has_more: bool = True
         self.page_max = None
 
@@ -121,6 +124,7 @@ class EventsPaginator:
 
         # Check if there are more pages to parse
         next_url = data.get("next", "")
+        log.debug(f"Next URL in current paginator's batch: {next_url}")
         if not next_url:
             self._has_more = False
 
