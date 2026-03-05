@@ -65,9 +65,9 @@ class EventsRepository(CRUDRepository):
         stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_data)
 
         await db.execute(stmt)
-        log.debug(f"Upsert stmt executed")
+        log.debug("Upsert stmt executed")
         await db.commit()
-        log.debug(f"Commit to db done")
+        log.debug("Commit to db done")
 
         # Retrieve the full ORM objects for the affected ids
         # ids = result.scalars().all()
