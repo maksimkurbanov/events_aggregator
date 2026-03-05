@@ -39,8 +39,9 @@ class CRUDRepository:
         log.debug(f"Retrieving one record for {self._name}")
         stmt = select(self._model).filter(*args).filter_by(**kwargs)
         query_result = await db.execute(stmt)
-        log.debug(f"Query result for get_one: {query_result.scalars().first()}")
-        return query_result.scalars().first()
+        obj = query_result.scalars().first()
+        log.debug(f"Query result for get_one: {obj}")
+        return obj
 
     async def get_many(
         self,
