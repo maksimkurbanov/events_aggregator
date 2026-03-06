@@ -77,11 +77,19 @@ class EventsProviderClient(BaseEventsProviderClient):
         finally:
             sync_client.close()
 
-    async def unregister(self, event_id):
+    async def unregister(self, event_id, **kwargs) -> dict[str, Any]:
         """Asynchronously unregister an entity with the provider."""
-        response = await self.client.delete(self._build_url(event_id, "unregister"))
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = await self.client.request(
+                "DELETE", self._build_url(event_id, "unregister"), json=kwargs
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            log.error(
+                f"Unregister API request to Events Provider failed: {e.response.text}"
+            )
+            raise
 
     async def get_seats(self, event_id) -> list[str]:
         log.debug(

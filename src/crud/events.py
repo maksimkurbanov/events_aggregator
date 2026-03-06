@@ -31,34 +31,41 @@ class EventsRepository(CRUDRepository):
 
     async def bulk_upsert(
         self, db: AsyncSession, objs_in: list[EventCreate]
-    ) -> list[Event]:
+    ) -> list[dict]:
         """
-        Perform a bulk upsert for multiple events.
+        Perform a bulk upsert for multiple events, based on their
+        Primary Key columns (works for composite PKs as well).
+        objs_in must contain all fields, including all Primary Key values.
         Returns the list of Event ORM objects after the operation.
         """
         if not objs_in:
             return []
 
         rows = [obj.model_dump() for obj in objs_in]
+
+        # Get the table object to access columns
+        table = self._model.__table__
+        # Convert primary key column names to actual column objects
+        pk_columns = [table.c[col_name] for col_name in self.id_col]
+
         stmt = pg_insert(self._model).values(rows)
 
         # On conflict (=existing rows) update all columns except 'id' with new, freshly-fetched values
         update_data = {
-            col: getattr(stmt.excluded, col) for col in rows[0] if col != "id"
+            col: getattr(stmt.excluded, col)
+            for col in rows[0]
+            if col not in self.id_col
         }
+        # Return PKs only, instead of complete ORM representations, for brevity
+        stmt = stmt.on_conflict_do_update(
+            index_elements=self.id_col, set_=update_data
+        ).returning(*pk_columns)
 
-        stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_data)
-
-        await db.execute(stmt)
+        result = await db.execute(stmt)
         await db.commit()
 
-        # Retrieve the full ORM objects for the affected ids
-        # ids = result.scalars().all()
-        # if ids:
-        #     # Use the existing get_many method (or a simple select)
-        #     events = await self.get_many(db, Event.id.in_(ids), order_by=None)
-        #     return events
-        return []
+        # Convert rows to list of dictionaries (formed from (column, value) tuples)
+        return [dict(zip(self.id_col, row)) for row in result.all()]
 
 
 events_crud = EventsRepository(model=Event)

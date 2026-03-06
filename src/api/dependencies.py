@@ -38,6 +38,7 @@ async def event_exists(
     """
     Wrapper for verified_event for correct dependency injection function signature handling:
     Verify that an event exists (published status not required)
+    Return Event object
     """
     return await verified_event(event_id, check_published=False, db=db)
 
@@ -48,5 +49,17 @@ async def event_exists_and_published(
     """
     Wrapper for verified_event for correct dependency injection function signature handling:
     Verify that an event exists and is published
+    Return Event object
     """
     return await verified_event(event_id, check_published=True, db=db)
+
+
+def validate_seat(seat: str, seat_pattern: str) -> bool:
+    seat_letter, seat_number = seat[0], int(seat[1:])
+
+    for pattern in seat_pattern.split(","):
+        if seat_letter == pattern[0]:
+            pattern_start, pattern_end = map(int, pattern[1:].split("-"))
+            if seat_number in range(pattern_start, pattern_end + 1):
+                return True
+    return False

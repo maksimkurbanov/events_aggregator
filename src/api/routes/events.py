@@ -96,6 +96,6 @@ async def get_seats(
             "updated_at": datetime.now(UTC),
         })
         seats = EventSeatsCacheUpdate.model_validate(data_from_provider)
-        await seats_cache_crud.upsert(db, seats, "event_id")
+        await seats_cache_crud.upsert(db, seats)
 
-    return {"event_id": seats.event_id, "available_seats": seats.seats}
+    return EventSeatsResponse(event_id=seats.event_id, available_seats=seats.seats)

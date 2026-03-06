@@ -66,7 +66,7 @@ class SingleEventResponse(PaginatedEventResponse):
     model_config = ConfigDict(from_attributes=True)
 
 
-SeatStr = Annotated[str, StringConstraints(pattern=r"^[A-Z][1-9]\d*$")]
+SeatStr = Annotated[str, StringConstraints(max_length=6, pattern=r"^[A-Z][1-9]\d*$")]
 
 
 class EventSeatsFromProvider(BaseModel):
