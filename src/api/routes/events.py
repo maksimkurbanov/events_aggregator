@@ -2,10 +2,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.dependencies import event_exists, event_exists_and_published
 from src.crud.events import events_crud
 from src.crud.seats_cache import seats_cache_crud
 from src.database.database import get_db
@@ -71,14 +72,7 @@ async def get_events(
 
 
 @events_router.get("/events/{event_id}", response_model=SingleEventResponse)
-async def get_single_event(
-    event_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]
-):
-    event = await events_crud.get_one(db, Event.id == event_id)
-    if not event:
-        raise HTTPException(
-            status_code=404, detail=f"Event with ID {event_id} not found"
-        )
+async def get_single_event(event: Annotated[Event, Depends(event_exists)]):
     return event
 
 
@@ -87,17 +81,8 @@ async def get_seats(
     event_id: UUID,
     client: Annotated[AsyncClient, Depends(get_events_provider_client)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    event: Annotated[Event, Depends(event_exists_and_published)],
 ):
-    event = await events_crud.get_one(db, Event.id == event_id)
-    if not event:
-        raise HTTPException(
-            status_code=404, detail=f"Event with ID {event_id} not found"
-        )
-    if event.status != "published":
-        raise HTTPException(
-            status_code=403, detail=f"Event with ID {event_id} not published"
-        )
-
     seats = await seats_cache_crud.get_one(
         db,
         EventSeatsCache.event_id == event_id,
@@ -105,8 +90,7 @@ async def get_seats(
     )
     if not seats:
         data_from_provider = await client.get_seats(event.id)
-        print(type(data_from_provider))
-        print(data_from_provider)
+        # Inject data to comply with cache schema
         data_from_provider.update({
             "event_id": event_id,
             "updated_at": datetime.now(UTC),

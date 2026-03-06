@@ -14,7 +14,7 @@ class PlaceResponse(BaseModel):
 
 
 class PlaceWithSeatsResponse(PlaceResponse):
-    seats_pattern: str = Field(pattern=r"^(,?([A-Z][1-9]-[1-9]\d*))+$")
+    seats_pattern: str = Field(pattern=r"^(,?([A-Z]1-[1-9]\d*))+$")
 
 
 class PlaceUpdate(PlaceWithSeatsResponse):

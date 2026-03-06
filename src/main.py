@@ -10,6 +10,7 @@ from sqlalchemy.sql.expression import text
 from src.api.routes.events import events_router
 from src.api.routes.health import health_router
 from src.api.routes.sync import sync_router
+from src.api.routes.tickets import ticket_router
 from src.config import dev_settings
 from src.database.database import get_ctx_db, get_engine
 from src.models.base_class import Base
@@ -55,6 +56,7 @@ app = FastAPI(lifespan=lifespan, title="Events Aggregator API")
 app.include_router(sync_router)
 app.include_router(health_router)
 app.include_router(events_router)
+app.include_router(ticket_router)
 
 
 async def main():

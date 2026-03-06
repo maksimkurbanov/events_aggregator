@@ -70,7 +70,9 @@ class EventsProviderClient(BaseEventsProviderClient):
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            log.error(f"Register API request to Events Provider failed: {e.__dict__}")
+            log.error(
+                f"Register API request to Events Provider failed: {e.response.text}"
+            )
             raise
         finally:
             sync_client.close()
