@@ -5,8 +5,10 @@ import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.sql.expression import text
 
+from src.api.exception_handlers import validation_exception_handler
 from src.api.routes.events import events_router
 from src.api.routes.health import health_router
 from src.api.routes.sync import sync_router
@@ -53,6 +55,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, title="Events Aggregator API")
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+
 app.include_router(sync_router)
 app.include_router(health_router)
 app.include_router(events_router)
