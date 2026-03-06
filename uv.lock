@@ -140,7 +140,7 @@ wheels = [
 [[package]]
 name = "events-aggregator"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "apscheduler" },
@@ -155,11 +155,6 @@ dependencies = [
     { name = "ruff" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "events-aggregator" },
 ]
 
 [package.metadata]
@@ -178,9 +173,6 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.47" },
     { name = "uvicorn", specifier = ">=0.41.0" },
 ]
-
-[package.metadata.requires-dev]
-dev = [{ name = "events-aggregator", editable = "." }]
 
 [[package]]
 name = "fastapi"

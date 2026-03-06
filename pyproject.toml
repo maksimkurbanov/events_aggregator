@@ -24,16 +24,6 @@ dependencies = [
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
-package = true
-
-[tool.uv.workspace]
-members = [
-    ".",
-]
-
-
-[tool.uv.sources]
-events-aggregator = { workspace = true, editable = true }
 
 [tool.ruff]
 line-length = 88
@@ -48,8 +38,3 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
-
-[dependency-groups]
-dev = [
-    "events-aggregator",
-]
