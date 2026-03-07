@@ -32,9 +32,41 @@ class BaseEventsProviderClient:
         )
         return self.base_url + args_str + kwargs_str
 
+    async def _perform_request(self, request_coro, request_context: str):
+        """Execute an async request, handle errors, and return JSON."""
+        try:
+            log.debug(
+                f"Establishing connection to Events Provider API: {request_context}"
+            )
+            response = await request_coro
+            if response.is_error:
+                response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            log.error(
+                f"{request_context} API request to Events Provider failed: {e.response.text}"
+            )
+            raise
+
+    def _perform_sync_request(self, request_func, request_context: str):
+        """Execute a sync request, handle errors, and return JSON."""
+        try:
+            log.debug(
+                f"Establishing connection to Events Provider API: {request_context}"
+            )
+            response = request_func()
+            if response.is_error:
+                response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            log.error(
+                f"{request_context} API request to Events Provider failed: {e.response.text}"
+            )
+            raise
+
 
 class EventsProviderClient(BaseEventsProviderClient):
-    """Asynchronous client for Events_Provider API"""
+    """Client for interaction with Events Provider API"""
 
     def __init__(self) -> None:
         super().__init__()
@@ -52,53 +84,32 @@ class EventsProviderClient(BaseEventsProviderClient):
         # changed_at and cursor query parameters
         if not next_url:
             next_url = self._build_url(changed_at=changed_at_date)
-        try:
-            response = await self.client.get(next_url)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
-            log.error(f"Get_events API request to Events Provider failed: {e}")
-            raise
+        return await self._perform_request(self.client.get(next_url), "Get events")
 
     def register(self, event_id, **kwargs) -> dict[str, Any]:
-        """Synchronously register a new entity with the provider."""
+        """Synchronously buy ticket from the provider."""
         sync_client = httpx.Client(timeout=self.timeout, headers=self._get_headers())
-        try:
-            response = sync_client.post(
+        return self._perform_sync_request(
+            lambda: sync_client.post(
                 self._build_url(event_id, "register"), json=kwargs
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
-            log.error(
-                f"Register API request to Events Provider failed: {e.response.text}"
-            )
-            raise
-        finally:
-            sync_client.close()
+            ),
+            "Register",
+        )
 
     async def unregister(self, event_id, **kwargs) -> dict[str, Any]:
-        """Asynchronously unregister an entity with the provider."""
-        try:
-            response = await self.client.request(
+        """Cancel ticket with the provider."""
+        return await self._perform_request(
+            self.client.request(
                 "DELETE", self._build_url(event_id, "unregister"), json=kwargs
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
-            log.error(
-                f"Unregister API request to Events Provider failed: {e.response.text}"
-            )
-            raise
+            ),
+            "Unregister",
+        )
 
     async def get_seats(self, event_id) -> list[str]:
-        log.debug(
-            "Establishing connection to Events Provider API: Getting seats for event: %s",
-            event_id,
+        """Get list of available seats for an event"""
+        return await self._perform_request(
+            self.client.get(self._build_url(event_id, "seats")), "Get seats"
         )
-        response = await self.client.get(self._build_url(event_id, "seats"))
-        response.raise_for_status()
-        return response.json()
 
     async def __aenter__(self):
         log.debug("Getting events provider httpx client")

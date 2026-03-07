@@ -64,13 +64,14 @@ async def delete_ticket(
             status_code=404, detail=f"Ticket with ID {ticket_id} not found"
         )
     event = await event_exists(ticket.event_id, db)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
     if event.event_time < datetime.now(UTC):
         raise HTTPException(
             status_code=403, detail="Cannot cancel: The event has already taken place"
         )
-    response = await client.unregister(event.id, ticket_id=ticket.ticket_id)
-    if response["success"] == True:
+    try:
+        await client.unregister(event.id, ticket_id=ticket.ticket_id)
+    except httpx.HTTPError:
+        return {"error": "Failed to cancel ticket"}
+    else:
         await tickets_crud.delete(db, ticket)
         return {"success": True}
