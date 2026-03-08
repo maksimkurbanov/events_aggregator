@@ -43,9 +43,7 @@ class BaseEventsProviderClient:
                 response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            log.error(
-                f"{request_context} API request to Events Provider failed: {e.response.text}"
-            )
+            log.error(f"{request_context} API request to Events Provider failed: {e}")
             raise
 
     def _perform_sync_request(self, request_func, request_context: str):
@@ -59,9 +57,7 @@ class BaseEventsProviderClient:
                 response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            log.error(
-                f"{request_context} API request to Events Provider failed: {e.response.text}"
-            )
+            log.error(f"{request_context} API request to Events Provider failed: {e}")
             raise
 
 
@@ -88,13 +84,15 @@ class EventsProviderClient(BaseEventsProviderClient):
 
     def register(self, event_id, **kwargs) -> dict[str, Any]:
         """Synchronously buy ticket from the provider."""
-        sync_client = httpx.Client(timeout=self.timeout, headers=self._get_headers())
-        return self._perform_sync_request(
-            lambda: sync_client.post(
-                self._build_url(event_id, "register"), json=kwargs
-            ),
-            "Register",
-        )
+        with httpx.Client(
+            timeout=self.timeout, headers=self._get_headers()
+        ) as sync_client:
+            return self._perform_sync_request(
+                lambda: sync_client.post(
+                    self._build_url(event_id, "register"), json=kwargs
+                ),
+                "Register",
+            )
 
     async def unregister(self, event_id, **kwargs) -> dict[str, Any]:
         """Cancel ticket with the provider."""

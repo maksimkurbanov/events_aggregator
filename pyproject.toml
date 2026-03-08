@@ -25,6 +25,10 @@ required-environments = [
     "sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
 [tool.ruff]
 line-length = 88
 preview = true

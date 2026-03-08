@@ -24,9 +24,12 @@ log = get_logger(__name__)
 async def do_sync_with_lock(
     app: FastAPI, sync_type: str = "scheduled", db: AsyncSession = get_ctx_db
 ):
-    """Wrapper that acquires a PostgreSQL advisory lock before running the actual sync."""
+    """
+    Wrapper that acquires a PostgreSQL advisory lock before running the actual sync.
+    Ensures only one sync job is ran at a time, even across multiple processes
+    """
     engine = app.state.engine
-    lock_key = create_lock_key("daily_events_sync")
+    lock_key = create_lock_key("events_sync")
 
     async with engine.connect() as lock_conn:
         result = await lock_conn.execute(
@@ -35,7 +38,7 @@ async def do_sync_with_lock(
         lock_acquired = result.scalar()
 
         if not lock_acquired:
-            log.info("Daily events sync already running elsewhere, skipping")
+            log.info("Events sync already running elsewhere, skipping")
             return
 
         try:
@@ -127,14 +130,14 @@ class EventsPaginator:
         self.client = client
         self.last_changed_at = last_changed_at
         self.next_url: str | None = None
-        self._has_more: bool = True
-        self.page_max = None
+        self.has_more: bool = True
+        self.page_max: datetime | None = None
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        if not self._has_more:
+        if not self.has_more:
             raise StopAsyncIteration
 
         data = await self.client.get_events(self.last_changed_at, self.next_url)
@@ -143,13 +146,13 @@ class EventsPaginator:
         if not events:
             raise StopAsyncIteration
 
-        # Get max 'changed_at' of events on current page
+        # Set page_max to maximum 'changed_at' of events on current page
         self.page_max = max(datetime.fromisoformat(e["changed_at"]) for e in events)
 
         # Check if there are more pages to parse
         self.next_url = data.get("next", "")
         if not self.next_url:
-            self._has_more = False
+            self.has_more = False
 
         # Managing redirects for local dev environment
         if self.next_url and "dev-2" in dev_settings.EVENT_PROVIDER_URL:
