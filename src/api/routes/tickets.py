@@ -39,7 +39,7 @@ async def buy_ticket(
     )
     ticket_data_for_provider = ticket_data_for_provider.model_dump()
     try:
-        ticket = client.register(event.id, **ticket_data_for_provider)
+        ticket = await client.register(event.id, **ticket_data_for_provider)
         response.status_code = status.HTTP_201_CREATED
     except httpx.HTTPError as e:
         raise HTTPException(status_code=400, detail="Ticket registration failed") from e

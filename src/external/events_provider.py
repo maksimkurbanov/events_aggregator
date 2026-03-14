@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+from httpx import Request
 
 from src.config import dev_settings
 from src.utils.log import get_logger
@@ -46,28 +47,21 @@ class BaseEventsProviderClient:
             log.error(f"{request_context} API request to Events Provider failed: {e}")
             raise
 
-    def _perform_sync_request(self, request_func, request_context: str):
-        """Execute a sync request, handle errors, and return JSON."""
-        try:
-            log.debug(
-                f"Establishing connection to Events Provider API: {request_context}"
-            )
-            response = request_func()
-            if response.is_error:
-                response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
-            log.error(f"{request_context} API request to Events Provider failed: {e}")
-            raise
+    async def _log_request(self, request: Request) -> None:
+        log.debug(f"Request URL: {request.url}")
+        log.debug(f"Request Headers: {request.headers}")
+        log.debug(f"Request Body: {request.content.decode()}")
 
 
 class EventsProviderClient(BaseEventsProviderClient):
-    """Client for interaction with Events Provider API"""
+    """Async client for interaction with Events Provider API"""
 
     def __init__(self) -> None:
         super().__init__()
         self.client = httpx.AsyncClient(
-            timeout=self.timeout, headers=self._get_headers()
+            timeout=self.timeout,
+            headers=self._get_headers(),
+            event_hooks={"request": [self._log_request]},
         )
 
     async def get_events(
@@ -82,17 +76,12 @@ class EventsProviderClient(BaseEventsProviderClient):
             next_url = self._build_url(changed_at=changed_at_date)
         return await self._perform_request(self.client.get(next_url), "Get events")
 
-    def register(self, event_id, **kwargs) -> dict[str, Any]:
-        """Synchronously buy ticket from the provider."""
-        with httpx.Client(
-            timeout=self.timeout, headers=self._get_headers()
-        ) as sync_client:
-            return self._perform_sync_request(
-                lambda: sync_client.post(
-                    self._build_url(event_id, "register"), json=kwargs
-                ),
-                "Register",
-            )
+    async def register(self, event_id, **kwargs) -> dict[str, Any]:
+        """Buy ticket from the provider."""
+        return await self._perform_request(
+            self.client.post(self._build_url(event_id, "register"), json=kwargs),
+            "Register",
+        )
 
     async def unregister(self, event_id, **kwargs) -> dict[str, Any]:
         """Cancel ticket with the provider."""
