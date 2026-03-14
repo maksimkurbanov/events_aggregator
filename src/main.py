@@ -8,7 +8,15 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.sql.expression import text
 
-from src.api.exception_handlers import validation_exception_handler
+from src.api.exception_handlers import (
+    validation_exception_handler,
+    event_not_found_handler,
+    ticket_registration_bad_data_handler,
+    ticket_registration_failed_handler,
+    event_not_published_handler,
+    ticket_cancellation_failed_handler,
+    ticket_not_found_handler,
+)
 from src.api.routes.events import events_router
 from src.api.routes.health import health_router
 from src.api.routes.sync import sync_router
@@ -16,9 +24,16 @@ from src.api.routes.tickets import ticket_router
 from src.config import dev_settings
 from src.database.database import get_ctx_db, get_engine
 from src.models.base_class import Base
+from src.services.event_service import EventNotFoundError, EventNotPublishedError
+from src.services.ticket_service import (
+    TicketRegistrationFailedError,
+    TicketCancellationFailedError,
+    TicketBadDataError,
+    TicketNotFoundError,
+)
 from src.utils.create_lock_key import create_lock_key
 from src.utils.log import get_logger
-from src.utils.sync_service import do_sync_with_lock
+from src.services.sync_service import do_sync_with_lock
 
 log = get_logger(__name__)
 scheduler = AsyncIOScheduler()
@@ -26,7 +41,6 @@ scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables, start scheduler
     engine = get_engine(dev_settings.POSTGRES_DB_URL, echo=False)
     app.state.engine = engine
     async with engine.begin() as conn:
@@ -40,7 +54,6 @@ async def lifespan(app: FastAPI):
         else:
             log.info("Table creation lock held by another process – skipping")
 
-    # Schedule daily sync at 2 AM
     scheduler.add_job(
         do_sync_with_lock,
         CronTrigger(hour=2, minute=0),
@@ -56,6 +69,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan, title="Events Aggregator API")
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(EventNotFoundError, event_not_found_handler)
+app.add_exception_handler(EventNotPublishedError, event_not_published_handler)
+app.add_exception_handler(TicketBadDataError, ticket_registration_bad_data_handler)
+app.add_exception_handler(
+    TicketRegistrationFailedError, ticket_registration_failed_handler
+)
+app.add_exception_handler(
+    TicketCancellationFailedError, ticket_cancellation_failed_handler
+)
+app.add_exception_handler(TicketNotFoundError, ticket_not_found_handler)
+
 
 app.include_router(sync_router)
 app.include_router(health_router)

@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import text
 
-from src.config import dev_settings
 from src.crud.events import events_crud
 from src.crud.sync_metadata import sync_crud
 from src.database.database import get_ctx_db
@@ -153,9 +152,5 @@ class EventsPaginator:
         self.next_url = data.get("next", "")
         if not self.next_url:
             self.has_more = False
-
-        # Managing redirects for local dev environment
-        if self.next_url and "dev-2" in dev_settings.EVENT_PROVIDER_URL:
-            self.next_url = self.next_url.replace("http", "https")
 
         return events

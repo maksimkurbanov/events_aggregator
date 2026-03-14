@@ -42,9 +42,4 @@ class DevSettings(Settings):
     LMS_API_KEY: str = os.getenv("LMS_API_KEY")
 
 
-# class TestSettings(Settings):
-#     pass
-
-
 dev_settings = DevSettings()
-# test_settings = TestSettings()

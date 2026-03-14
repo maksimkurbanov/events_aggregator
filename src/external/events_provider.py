@@ -74,6 +74,9 @@ class EventsProviderClient(BaseEventsProviderClient):
         # changed_at and cursor query parameters
         if not next_url:
             next_url = self._build_url(changed_at=changed_at_date)
+        # Managing redirects for local dev environment
+        if "dev-2" in dev_settings.EVENT_PROVIDER_URL:
+            next_url = next_url.replace("http:", "https:")
         return await self._perform_request(self.client.get(next_url), "Get events")
 
     async def register(self, event_id, **kwargs) -> dict[str, Any]:
@@ -92,7 +95,7 @@ class EventsProviderClient(BaseEventsProviderClient):
             "Unregister",
         )
 
-    async def get_seats(self, event_id) -> list[str]:
+    async def get_seats(self, event_id) -> dict[str, Any]:
         """Get list of available seats for an event"""
         return await self._perform_request(
             self.client.get(self._build_url(event_id, "seats")), "Get seats"
@@ -105,8 +108,3 @@ class EventsProviderClient(BaseEventsProviderClient):
     async def __aexit__(self, *args):
         log.debug("Closing events provider httpx client")
         await self.client.aclose()
-
-
-async def get_events_provider_client() -> EventsProviderClient:
-    async with EventsProviderClient() as client:
-        yield client

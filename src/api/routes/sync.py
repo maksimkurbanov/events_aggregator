@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 
 from src.utils.log import get_logger
-from src.utils.sync_service import do_sync_with_lock
+from src.services.sync_service import do_sync_with_lock
 
 log = get_logger(__name__)
 sync_router = APIRouter(tags=["Sync"])

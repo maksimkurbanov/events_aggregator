@@ -1,65 +1,30 @@
-from typing import Annotated
-from uuid import UUID
+from typing import Annotated, Any, AsyncGenerator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.crud.events import events_crud
 from src.database.database import get_db
-from src.models.event import Event
+from src.external.events_provider import EventsProviderClient
+from src.services.event_service import EventService
+from src.services.ticket_service import TicketService
 
 
-async def verified_event(
-    event_id: UUID, check_published: bool, db: Annotated[AsyncSession, Depends(get_db)]
-) -> Event:
-    """
-    Retrieve an event by ID and verify it exists,
-    also optionally verify if it is published.
-    Raises 404 if not found, 403 if not published.
-    Return verified Event object
-    """
-    event = await events_crud.get_one(db, Event.id == event_id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Event with ID {event_id} not found",
-        )
-    if check_published and event.status != "published":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Event with ID {event_id} not published",
-        )
-    return event
+async def get_event_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> EventService:
+    return EventService(db)
 
 
-async def event_exists(
-    event_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]
-) -> Event:
-    """
-    Wrapper for verified_event for correct dependency injection function signature handling:
-    Verify that an event exists (published status not required)
-    Return Event object
-    """
-    return await verified_event(event_id, check_published=False, db=db)
+async def get_ticket_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    events_service: Annotated[EventService, Depends(get_event_service)],
+    provider_client: Annotated[
+        EventsProviderClient, Depends(get_events_provider_client)
+    ],
+) -> TicketService:
+    return TicketService(db, events_service, provider_client)
 
 
-async def event_exists_and_published(
-    event_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]
-) -> Event:
-    """
-    Wrapper for verified_event for correct dependency injection function signature handling:
-    Verify that an event exists and is published
-    Return Event object
-    """
-    return await verified_event(event_id, check_published=True, db=db)
-
-
-def validate_seat(seat: str, seat_pattern: str) -> bool:
-    seat_letter, seat_number = seat[0], int(seat[1:])
-
-    for pattern in seat_pattern.split(","):
-        if seat_letter == pattern[0]:
-            pattern_start, pattern_end = map(int, pattern[1:].split("-"))
-            if seat_number in range(pattern_start, pattern_end + 1):
-                return True
-    return False
+async def get_events_provider_client() -> AsyncGenerator[Any, Any]:
+    async with EventsProviderClient() as client:
+        yield client
