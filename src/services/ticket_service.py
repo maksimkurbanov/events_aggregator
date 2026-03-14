@@ -3,10 +3,8 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.crud.events import events_crud
 from src.crud.tickets import tickets_crud
 from src.external.events_provider import EventsProviderClient
-from src.models.event import Event
 from src.models.ticket import Ticket
 from src.schemas.ticket import BuyTicketProviderRequest, TicketUpdate
 from src.services.event_service import EventService
@@ -41,9 +39,6 @@ class TicketService:
         )
         if datetime.now(UTC) >= event.registration_deadline:
             raise TicketBadDataError("Cannot register past registration deadline")
-        log.debug(f"{ticket_data['seat']=}")
-        log.debug(f"{event.place['seats_pattern']=}")
-        log.debug(f"{type(event.place['seats_pattern'])=}")
         if not self._validate_seat(ticket_data["seat"], event.place["seats_pattern"]):
             raise TicketBadDataError(f"Invalid seat: {ticket_data['seat']}")
 
@@ -65,7 +60,7 @@ class TicketService:
         ticket = await tickets_crud.get_one(self.db, Ticket.ticket_id == ticket_id)
         if not ticket:
             raise TicketNotFoundError(f"Ticket with ID {ticket_id} not found")
-        event = await events_crud.get_one(self.db, Event.id == ticket.event_id)
+        event = await self.events.get_single_event(ticket.event_id)
         if event.event_time < datetime.now(UTC):
             raise TicketBadDataError("Cannot cancel: event has already taken place")
 

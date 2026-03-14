@@ -11,7 +11,7 @@ log = get_logger(__name__)
 
 
 class BaseEventsProviderClient:
-    def __init__(self, timeout: int = 30) -> None:
+    def __init__(self, timeout: int = 60) -> None:
         self.base_url = dev_settings.EVENT_PROVIDER_URL + "api/events/"
         self.api_key = dev_settings.LMS_API_KEY
         self.timeout = timeout

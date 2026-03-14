@@ -27,7 +27,9 @@ def get_engine(database_url: str, echo=False) -> AsyncEngine:
     Returns:
         Engine: A SQLAlchemy Engine object representing the database connection.
     """
-    return create_async_engine(database_url, echo=echo)
+    return create_async_engine(
+        database_url, echo=echo, pool_pre_ping=True, pool_recycle=300
+    )
 
 
 def get_local_session(database_url: str, echo=False) -> async_sessionmaker:
