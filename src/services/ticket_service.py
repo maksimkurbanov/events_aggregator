@@ -49,7 +49,11 @@ class TicketService:
         )
 
         try:
-            ticket = await self.client.register(event.id, **ticket_data_for_provider)
+            log.debug(f"{ticket_data['event_id']=}")
+            log.debug(f"{ticket_data_for_provider=}")
+            ticket = await self.client.register(
+                ticket_data["event_id"], **ticket_data_for_provider
+            )
         except httpx.HTTPError:
             raise TicketRegistrationFailedError("Ticket registration failed")
         else:

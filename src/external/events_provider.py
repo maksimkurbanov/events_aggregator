@@ -63,6 +63,10 @@ class EventsProviderClient(BaseEventsProviderClient):
             headers=self._get_headers(),
             event_hooks={"request": [self._log_request]},
         )
+        # self.client = httpx.AsyncClient(
+        #     timeout=self.timeout,
+        #     headers=self._get_headers()
+        # )
 
     async def get_events(
         self, changed_at: datetime, next_url: str | None = None
