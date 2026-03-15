@@ -20,6 +20,7 @@ async def buy_ticket(
     ticket_data: BuyTicketRequest,
     service: Annotated[TicketService, Depends(get_ticket_service)],
 ):
+    log.debug(f"Routes buy_ticket endpoint: {ticket_data=}")
     return await service.buy_ticket(dict(ticket_data))
 
 

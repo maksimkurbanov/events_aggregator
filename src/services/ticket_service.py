@@ -37,6 +37,7 @@ class TicketService:
         event = await self.events.verified_event(
             ticket_data["event_id"], check_published=True
         )
+        log.debug(f"Ticket service: buy_ticket func: {event=}")
         if datetime.now(UTC) >= event.registration_deadline:
             raise TicketBadDataError("Cannot register past registration deadline")
         if not self._validate_seat(ticket_data["seat"], event.place["seats_pattern"]):
@@ -46,10 +47,10 @@ class TicketService:
         ticket_data_for_provider = ticket_data_for_provider.model_dump(
             exclude={"event_id"}
         )
+        log.debug(f"Ticket service: buy_ticket func: {ticket_data['event_id']=}")
+        log.debug(f"Ticket service: buy_ticket func: {ticket_data_for_provider=}")
 
         try:
-            log.debug(f"{ticket_data['event_id']=}")
-            log.debug(f"{ticket_data_for_provider=}")
             ticket = await self.client.register(
                 ticket_data["event_id"], **ticket_data_for_provider
             )

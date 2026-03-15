@@ -7,6 +7,9 @@ from src.database.database import get_db
 from src.external.events_provider import EventsProviderClient
 from src.services.event_service import EventService
 from src.services.ticket_service import TicketService
+from src.utils.log import get_logger
+
+log = get_logger(__name__)
 
 
 async def get_event_service(
@@ -32,6 +35,8 @@ async def get_ticket_service(
         EventsProviderClient, Depends(get_events_provider_client)
     ],
 ) -> TicketService:
+    log.debug(f"Dependencies: get_ticket_service: {db_ticket=}")
+    log.debug(f"Dependencies: get_ticket_service: {db_event=}")
     events_service = EventService(db=db_event)
     return TicketService(db_ticket, events_service, provider_client)
 

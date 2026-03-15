@@ -11,7 +11,7 @@ log = get_logger(__name__)
 
 
 class BaseEventsProviderClient:
-    def __init__(self, timeout: int = 60) -> None:
+    def __init__(self, timeout: int = 180) -> None:
         self.base_url = dev_settings.EVENT_PROVIDER_URL + "api/events/"
         self.api_key = dev_settings.LMS_API_KEY
         self.timeout = timeout
@@ -47,7 +47,7 @@ class BaseEventsProviderClient:
             log.error(f"{request_context} API request to Events Provider failed: {e}")
             raise
 
-    async def _log_request(self, request: Request) -> None:
+    def _log_request(self, request: Request) -> None:
         log.debug(f"Request URL: {request.url}")
         log.debug(f"Request Headers: {request.headers}")
         log.debug(f"Request Body: {request.content.decode()}")
@@ -58,15 +58,14 @@ class EventsProviderClient(BaseEventsProviderClient):
 
     def __init__(self) -> None:
         super().__init__()
-        self.client = httpx.AsyncClient(
-            timeout=self.timeout,
-            headers=self._get_headers(),
-            event_hooks={"request": [self._log_request]},
-        )
         # self.client = httpx.AsyncClient(
         #     timeout=self.timeout,
-        #     headers=self._get_headers()
+        #     headers=self._get_headers(),
+        #     event_hooks={"request": [self._log_request]},
         # )
+        self.client = httpx.AsyncClient(
+            timeout=self.timeout, headers=self._get_headers()
+        )
 
     async def get_events(
         self, changed_at: datetime, next_url: str | None = None
@@ -84,14 +83,16 @@ class EventsProviderClient(BaseEventsProviderClient):
         return await self._perform_request(self.client.get(next_url), "Get events")
 
     async def register(self, event_id, **kwargs) -> dict[str, Any]:
-        """Buy ticket from the provider."""
+        """Buy ticket from the provider"""
+        log.debug(f"Events_provider: register func: {event_id=}")
+        log.debug(f"Events_provider: register func: {kwargs=}")
         return await self._perform_request(
             self.client.post(self._build_url(event_id, "register"), json=kwargs),
             "Register",
         )
 
     async def unregister(self, event_id, **kwargs) -> dict[str, Any]:
-        """Cancel ticket with the provider."""
+        """Cancel ticket with the provider"""
         return await self._perform_request(
             self.client.request(
                 "DELETE", self._build_url(event_id, "unregister"), json=kwargs

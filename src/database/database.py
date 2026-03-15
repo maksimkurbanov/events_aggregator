@@ -28,7 +28,7 @@ def get_engine(database_url: str, echo=False) -> AsyncEngine:
         Engine: A SQLAlchemy Engine object representing the database connection.
     """
     return create_async_engine(
-        database_url, echo=echo, pool_pre_ping=True, pool_recycle=300
+        database_url, echo=echo, pool_pre_ping=True, pool_recycle=300, pool_size=20
     )
 
 
@@ -48,7 +48,7 @@ def get_local_session(database_url: str, echo=False) -> async_sessionmaker:
         for the DEV database session.
     """
     engine = get_engine(database_url, echo)
-    return async_sessionmaker(bind=engine, autoflush=False)
+    return async_sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession]:
