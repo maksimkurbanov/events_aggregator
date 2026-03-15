@@ -15,14 +15,25 @@ async def get_event_service(
     return EventService(db)
 
 
+# async def get_ticket_service(
+#     db: Annotated[AsyncSession, Depends(get_db)],
+#     events_service: Annotated[EventService, Depends(get_event_service)],
+#     provider_client: Annotated[
+#         EventsProviderClient, Depends(get_events_provider_client)
+#     ],
+# ) -> TicketService:
+#     return TicketService(db, events_service, provider_client)
+
+
 async def get_ticket_service(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    events_service: Annotated[EventService, Depends(get_event_service)],
+    db_ticket: Annotated[AsyncSession, Depends(get_db)],
+    db_event: Annotated[AsyncSession, Depends(get_db, use_cache=False)],
     provider_client: Annotated[
         EventsProviderClient, Depends(get_events_provider_client)
     ],
 ) -> TicketService:
-    return TicketService(db, events_service, provider_client)
+    events_service = EventService(db=db_event)
+    return TicketService(db_ticket, events_service, provider_client)
 
 
 async def get_events_provider_client() -> AsyncGenerator[Any, Any]:
