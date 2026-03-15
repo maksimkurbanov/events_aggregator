@@ -27,28 +27,20 @@ def get_engine(database_url: str, echo=False) -> AsyncEngine:
     Returns:
         Engine: A SQLAlchemy Engine object representing the database connection.
     """
-    return create_async_engine(
-        database_url, echo=echo, pool_pre_ping=True, pool_recycle=300, pool_size=20
-    )
+    return create_async_engine(database_url, echo=echo, pool_pre_ping=True)
 
 
-def get_local_session(database_url: str, echo=False) -> async_sessionmaker:
+def get_local_session(engine: AsyncEngine) -> async_sessionmaker:
     """
     Database session factory -- create and return an async_sessionmaker
-    object for a database session.
-
-    Parameters:
-        database_url (str): The URL of the local database.
-        Defaults to `SQLALCHEMY_DATABASE_URL`.
-        echo (bool): Whether to echo SQL statements to the console.
-        Defaults to `False`.
-
+    object for a database session. Bound to global engine
+      Parameters:
+        engine (AsyncEngine): SQLAlchemy AsyncEngine object
     Returns:
         async_sessionmaker: An async_sessionmaker object configured
         for the DEV database session.
     """
-    engine = get_engine(database_url, echo)
-    return async_sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    return async_sessionmaker(bind=engine, autoflush=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession]:
@@ -60,8 +52,7 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
         Session: A database session object.
     """
     log.debug("Getting database session")
-    db = get_local_session(dev_settings.POSTGRES_DB_URL, False)()
-    async with db as session:
+    async with async_session_local() as session:
         yield session
     log.debug("Closing database session")
 
@@ -69,7 +60,10 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
 @asynccontextmanager
 async def get_ctx_db() -> AsyncGenerator[AsyncSession]:
     log.debug("Getting database session")
-    db = get_local_session(dev_settings.POSTGRES_DB_URL, False)()
-    async with db as session:
+    async with async_session_local() as session:
         yield session
     log.debug("Closing database session")
+
+
+engine = get_engine(dev_settings.POSTGRES_DB_URL)
+async_session_local = get_local_session(engine)

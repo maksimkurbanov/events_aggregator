@@ -22,7 +22,7 @@ from src.api.routes.health import health_router
 from src.api.routes.sync import sync_router
 from src.api.routes.tickets import ticket_router
 from src.config import dev_settings
-from src.database.database import get_ctx_db, get_engine
+from src.database.database import get_ctx_db, engine
 from src.models.base_class import Base
 from src.services.event_service import EventNotFoundError, EventNotPublishedError
 from src.services.ticket_service import (
@@ -41,7 +41,6 @@ scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    engine = get_engine(dev_settings.POSTGRES_DB_URL, echo=False)
     app.state.engine = engine
     async with engine.begin() as conn:
         lock_key = create_lock_key("create_table_schemas")
