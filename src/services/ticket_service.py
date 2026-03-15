@@ -41,7 +41,6 @@ class TicketService:
             raise TicketBadDataError("Cannot register past registration deadline")
         if not self._validate_seat(ticket_data["seat"], event.place["seats_pattern"]):
             raise TicketBadDataError(f"Invalid seat: {ticket_data['seat']}")
-        await self.events.db.commit()
 
         ticket_data_for_provider = BuyTicketProviderRequest.model_validate(ticket_data)
         ticket_data_for_provider = ticket_data_for_provider.model_dump(
