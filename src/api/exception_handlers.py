@@ -8,6 +8,7 @@ from src.services.ticket_service import (
     TicketBadDataError,
     TicketCancellationFailedError,
     TicketNotFoundError,
+    TicketBadIdempotencyKeyError,
 )
 
 
@@ -53,3 +54,9 @@ async def ticket_cancellation_failed_handler(
 
 async def ticket_not_found_handler(request: Request, exc: TicketNotFoundError):
     return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+async def ticket_bad_idempotency_key_handler(
+    request: Request, exc: TicketBadIdempotencyKeyError
+):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})

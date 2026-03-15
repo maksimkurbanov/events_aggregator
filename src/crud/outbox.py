@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.crud.base import CRUDRepository
 from src.models.outbox import Outbox, OutboxStatus
 from src.schemas.outbox import OutboxCreate
+from src.utils.log import get_logger
+
+log = get_logger(__name__)
 
 
 class OutboxCRUD(CRUDRepository):
@@ -17,6 +20,7 @@ class OutboxCRUD(CRUDRepository):
         return result.scalars().one()
 
     async def mark_sent(self, db: AsyncSession, outbox_id: uuid.UUID) -> None:
+        log.debug(f"Marking event as sent: {outbox_id}")
         stmt = (
             update(Outbox)
             .where(Outbox.id == outbox_id)

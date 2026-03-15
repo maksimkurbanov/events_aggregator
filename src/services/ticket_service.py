@@ -1,6 +1,7 @@
 from uuid import UUID
 
 import httpx
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.crud.outbox import outbox_crud
@@ -8,10 +9,11 @@ from src.crud.tickets import tickets_crud
 from src.external.events_provider import EventsProviderClient
 from src.models.ticket import Ticket
 from src.schemas.outbox import OutboxCreate
-from src.schemas.ticket import BuyTicketProviderRequest, TicketUpdate
+from src.schemas.ticket import BuyTicketProviderRequest, TicketUpdate, BuyTicketRequest
 from src.services.event_service import EventService
 from datetime import UTC, datetime
 
+from src.utils.create_lock_key import create_lock_key
 from src.utils.log import get_logger
 
 log = get_logger(__name__)
@@ -35,7 +37,34 @@ class TicketService:
                     return True
         return False
 
+    async def _acquire_idempotency_lock(self, key: str):
+        """Acquire a transaction‑scoped advisory lock for the given key."""
+        lock_id = create_lock_key(key)
+        await self.db.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id}
+        )
+
+    async def _validate_idempotency(self, data: dict) -> dict | None:
+        existing_ticket = await tickets_crud.get_one(
+            self.db, Ticket.idempotency_key == data["idempotency_key"]
+        )
+        if existing_ticket:
+            data_in_db = BuyTicketRequest.model_validate(existing_ticket).model_dump()
+            if data_in_db != data:
+                raise TicketBadIdempotencyKeyError(
+                    "Idempotency key does not match data"
+                )
+            return {"ticket_id": existing_ticket.__dict__["ticket_id"]}
+        return None
+
     async def buy_ticket(self, ticket_data: dict):
+        idempotency_key = ticket_data.get("idempotency_key", None)
+        if idempotency_key:
+            await self._acquire_idempotency_lock(idempotency_key)
+            correct_ticket = await self._validate_idempotency(ticket_data)
+            if correct_ticket:
+                return correct_ticket
+
         event = await self.events.verified_event(
             ticket_data["event_id"], check_published=True
         )
@@ -45,6 +74,7 @@ class TicketService:
             raise TicketBadDataError(f"Invalid seat: {ticket_data['seat']}")
 
         ticket_data_for_provider = BuyTicketProviderRequest.model_validate(ticket_data)
+        log.debug(f"{ticket_data_for_provider=}")
         ticket_data_for_provider = ticket_data_for_provider.model_dump(
             exclude={"event_id"}
         )
@@ -111,6 +141,12 @@ class TicketNotFoundError(Exception):
 
 
 class TicketCancellationFailedError(Exception):
-    """Raised when the external provider ticket registration fails"""
+    """Raised when the external provider ticket cancellation fails"""
+
+    pass
+
+
+class TicketBadIdempotencyKeyError(Exception):
+    """Raised when idempotency key and data in request do not match idempotency key and data in local DB"""
 
     pass

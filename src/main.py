@@ -16,6 +16,7 @@ from src.api.exception_handlers import (
     event_not_published_handler,
     ticket_cancellation_failed_handler,
     ticket_not_found_handler,
+    ticket_bad_idempotency_key_handler,
 )
 from src.api.routes.events import events_router
 from src.api.routes.health import health_router
@@ -30,6 +31,7 @@ from src.services.ticket_service import (
     TicketCancellationFailedError,
     TicketBadDataError,
     TicketNotFoundError,
+    TicketBadIdempotencyKeyError,
 )
 from src.utils.create_lock_key import create_lock_key
 from src.utils.log import get_logger
@@ -59,6 +61,14 @@ async def lifespan(app: FastAPI):
         max_instances=1,
         args=[app, "scheduled", get_ctx_db],
     )
+    # scheduler.add_job(
+    #     process_outbox,
+    #     "interval",
+    #     seconds=10,
+    #     max_instances=1,
+    #     id="outbox_processor",
+    #     replace_existing=True,
+    # )
     scheduler.start()
     log.info("Scheduler started")
     yield
@@ -78,6 +88,9 @@ app.add_exception_handler(
     TicketCancellationFailedError, ticket_cancellation_failed_handler
 )
 app.add_exception_handler(TicketNotFoundError, ticket_not_found_handler)
+app.add_exception_handler(
+    TicketBadIdempotencyKeyError, ticket_bad_idempotency_key_handler
+)
 
 
 app.include_router(sync_router)

@@ -1,14 +1,8 @@
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 from src.schemas.event import SeatStr
-
-
-class TicketInDB(BaseModel):
-    ticket_id: UUID
-    first_name: str
-    last_name: str
 
 
 class BuyTicketRequest(BaseModel):
@@ -17,6 +11,9 @@ class BuyTicketRequest(BaseModel):
     last_name: str
     email: EmailStr
     seat: SeatStr
+    idempotency_key: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BuyTicketProviderRequest(BaseModel):
@@ -28,3 +25,5 @@ class BuyTicketProviderRequest(BaseModel):
 
 class TicketUpdate(BuyTicketRequest):
     ticket_id: UUID
+
+    model_config = ConfigDict(from_attributes=True)
