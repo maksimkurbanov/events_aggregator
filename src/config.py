@@ -40,6 +40,7 @@ class DevSettings(Settings):
 
     EVENT_PROVIDER_URL: str = os.getenv("EVENT_PROVIDER_URL")
     LMS_API_KEY: str = os.getenv("LMS_API_KEY")
+    CAPASHINO_URL: str = os.getenv("CAPASHINO_URL")
 
 
 dev_settings = DevSettings()

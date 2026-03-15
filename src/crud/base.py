@@ -96,7 +96,9 @@ class CRUDRepository:
         await db.refresh(db_obj)
         return db_obj
 
-    async def upsert(self, db: AsyncSession, obj_in: UpdateSchemaType) -> ORMModel:
+    async def upsert(
+        self, db: AsyncSession, obj_in: UpdateSchemaType, commit=True
+    ) -> ORMModel:
         """
         Insert or update an event based on its Primary Key column(s)
         obj_in must contain all fields, including all Primary Key values.
@@ -110,7 +112,8 @@ class CRUDRepository:
         update_data = {k: v for k, v in data.items() if k not in self.id_col}
         stmt = stmt.on_conflict_do_update(index_elements=self.id_col, set_=update_data)
         await db.execute(stmt)
-        await db.commit()
+        if commit:
+            await db.commit()
 
         # Get and return upserted object using it's PK(s) value(s) from session's identity map
         pk_values = tuple(data[col] for col in self.id_col)

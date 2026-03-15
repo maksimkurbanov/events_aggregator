@@ -3,9 +3,11 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.crud.outbox import outbox_crud
 from src.crud.tickets import tickets_crud
 from src.external.events_provider import EventsProviderClient
 from src.models.ticket import Ticket
+from src.schemas.outbox import OutboxCreate
 from src.schemas.ticket import BuyTicketProviderRequest, TicketUpdate
 from src.services.event_service import EventService
 from datetime import UTC, datetime
@@ -37,7 +39,6 @@ class TicketService:
         event = await self.events.verified_event(
             ticket_data["event_id"], check_published=True
         )
-        log.debug(f"Ticket service: buy_ticket func: {event=}")
         if datetime.now(UTC) >= event.registration_deadline:
             raise TicketBadDataError("Cannot register past registration deadline")
         if not self._validate_seat(ticket_data["seat"], event.place["seats_pattern"]):
@@ -47,8 +48,6 @@ class TicketService:
         ticket_data_for_provider = ticket_data_for_provider.model_dump(
             exclude={"event_id"}
         )
-        log.debug(f"Ticket service: buy_ticket func: {ticket_data['event_id']=}")
-        log.debug(f"Ticket service: buy_ticket func: {ticket_data_for_provider=}")
 
         try:
             ticket = await self.client.register(
@@ -56,12 +55,25 @@ class TicketService:
             )
         except httpx.HTTPError:
             raise TicketRegistrationFailedError("Ticket registration failed")
-        else:
-            ticket_data.update(ticket)
-            ticket_update_data = TicketUpdate.model_validate(ticket_data)
-            await tickets_crud.upsert(self.db, ticket_update_data)
-            log.debug(f"In buy_ticket, before returning: {ticket=}")
-            return ticket
+
+        ticket_data.update(ticket)
+        ticket_update_data = TicketUpdate.model_validate(ticket_data)
+        await tickets_crud.upsert(self.db, ticket_update_data, commit=False)
+
+        outbox_payload = {
+            "ticket_id": str(ticket["ticket_id"]),
+            "user_email": ticket_data["email"],
+            "event_id": str(ticket_data["event_id"]),
+            "seat": ticket_data["seat"],
+            "first_name": ticket_data["first_name"],
+            "last_name": ticket_data["last_name"],
+        }
+        outbox_entry = OutboxCreate(
+            event_type="ticket_purchased", payload=outbox_payload
+        )
+        await outbox_crud.create(self.db, outbox_entry)
+        await self.db.commit()
+        return ticket
 
     async def delete_ticket(self, ticket_id: UUID):
         ticket = await tickets_crud.get_one(self.db, Ticket.ticket_id == ticket_id)

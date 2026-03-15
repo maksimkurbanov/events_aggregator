@@ -11,7 +11,7 @@ log = get_logger(__name__)
 
 
 class BaseEventsProviderClient:
-    def __init__(self, timeout: int = 180) -> None:
+    def __init__(self, timeout: int = 120) -> None:
         self.base_url = dev_settings.EVENT_PROVIDER_URL + "api/events/"
         self.api_key = dev_settings.LMS_API_KEY
         self.timeout = timeout
@@ -47,7 +47,7 @@ class BaseEventsProviderClient:
             log.error(f"{request_context} API request to Events Provider failed: {e}")
             raise
 
-    def _log_request(self, request: Request) -> None:
+    async def _log_request(self, request: Request) -> None:
         log.debug(f"Request URL: {request.url}")
         log.debug(f"Request Headers: {request.headers}")
         log.debug(f"Request Body: {request.content.decode()}")
@@ -58,13 +58,10 @@ class EventsProviderClient(BaseEventsProviderClient):
 
     def __init__(self) -> None:
         super().__init__()
-        # self.client = httpx.AsyncClient(
-        #     timeout=self.timeout,
-        #     headers=self._get_headers(),
-        #     event_hooks={"request": [self._log_request]},
-        # )
         self.client = httpx.AsyncClient(
-            timeout=self.timeout, headers=self._get_headers()
+            timeout=self.timeout,
+            headers=self._get_headers(),
+            event_hooks={"request": [self._log_request]},
         )
 
     async def get_events(
@@ -84,8 +81,6 @@ class EventsProviderClient(BaseEventsProviderClient):
 
     async def register(self, event_id, **kwargs) -> dict[str, Any]:
         """Buy ticket from the provider"""
-        log.debug(f"Events_provider: register func: {event_id=}")
-        log.debug(f"Events_provider: register func: {kwargs=}")
         return await self._perform_request(
             self.client.post(self._build_url(event_id, "register"), json=kwargs),
             "Register",
