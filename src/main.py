@@ -1,12 +1,13 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy.sql.expression import text
 
 from src.api.exception_handlers import (
     validation_exception_handler,
@@ -24,8 +25,8 @@ from src.api.routes.sync import sync_router
 from src.api.routes.tickets import ticket_router
 from src.config import dev_settings
 from src.database.database import get_ctx_db, engine
-from src.models.base_class import Base
 from src.services.event_service import EventNotFoundError, EventNotPublishedError
+from src.services.outbox_service import process_outbox
 from src.services.ticket_service import (
     TicketRegistrationFailedError,
     TicketCancellationFailedError,
@@ -33,7 +34,7 @@ from src.services.ticket_service import (
     TicketNotFoundError,
     TicketBadIdempotencyKeyError,
 )
-from src.utils.create_lock_key import create_lock_key
+
 from src.utils.log import get_logger
 from src.services.sync_service import do_sync_with_lock
 
@@ -44,16 +45,6 @@ scheduler = AsyncIOScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.engine = engine
-    async with engine.begin() as conn:
-        lock_key = create_lock_key("create_table_schemas")
-        result = await conn.execute(
-            text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": lock_key}
-        )
-        lock_acquired = result.scalar()
-        if lock_acquired:
-            await conn.run_sync(Base.metadata.create_all)
-        else:
-            log.info("Table creation lock held by another process – skipping")
 
     scheduler.add_job(
         do_sync_with_lock,
@@ -61,19 +52,28 @@ async def lifespan(app: FastAPI):
         max_instances=1,
         args=[app, "scheduled", get_ctx_db],
     )
-    # scheduler.add_job(
-    #     process_outbox,
-    #     "interval",
-    #     seconds=10,
-    #     max_instances=1,
-    #     id="outbox_processor",
-    #     replace_existing=True,
-    # )
+    scheduler.add_job(
+        process_outbox,
+        "interval",
+        seconds=5,
+        max_instances=1,
+        id="outbox_processor",
+        replace_existing=True,
+    )
     scheduler.start()
     log.info("Scheduler started")
     yield
     scheduler.shutdown()
     await engine.dispose()
+
+
+sentry_sdk.init(
+    dsn=dev_settings.SENTRY_DSN,
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of traces for performance monitoring.
+    traces_sample_rate=1.0,
+    integrations=[FastApiIntegration()],
+)
 
 
 app = FastAPI(lifespan=lifespan, title="Events Aggregator API")

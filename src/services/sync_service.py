@@ -145,10 +145,8 @@ class EventsPaginator:
         if not events:
             raise StopAsyncIteration
 
-        # Set page_max to maximum 'changed_at' of events on current page
         self.page_max = max(datetime.fromisoformat(e["changed_at"]) for e in events)
 
-        # Check if there are more pages to parse
         self.next_url = data.get("next", "")
         if not self.next_url:
             self.has_more = False

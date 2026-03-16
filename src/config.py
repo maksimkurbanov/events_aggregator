@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     EVENT_PROVIDER_URL: str
     LMS_API_KEY: str
+    CAPASHINO_URL: str
+    SENTRY_DSN: str
 
 
 class DevSettings(Settings):
@@ -41,6 +43,7 @@ class DevSettings(Settings):
     EVENT_PROVIDER_URL: str = os.getenv("EVENT_PROVIDER_URL")
     LMS_API_KEY: str = os.getenv("LMS_API_KEY")
     CAPASHINO_URL: str = os.getenv("CAPASHINO_URL")
+    SENTRY_DSN: str = os.getenv("SENTRY_DSN")
 
 
 dev_settings = DevSettings()

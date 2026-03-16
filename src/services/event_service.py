@@ -68,14 +68,10 @@ class EventService:
         next_url = prev_url = None
 
         if offset + page_size < count:
-            next_url = str(base_url_with_page).replace(
-                f"page={page}", f"page={page + 1}"
-            )
+            next_url = base_url_with_page.replace(f"page={page}", f"page={page + 1}")
 
         if page > 1:
-            prev_url = str(base_url_with_page).replace(
-                f"page={page}", f"page={page - 1}"
-            )
+            prev_url = base_url_with_page.replace(f"page={page}", f"page={page - 1}")
 
         return PaginatedEventsResponse(
             count=count,

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+
 import httpx
 from httpx import Request
 
@@ -43,8 +44,10 @@ class BaseEventsProviderClient:
             if response.is_error:
                 response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
-            log.error(f"{request_context} API request to Events Provider failed: {e}")
+        except httpx.HTTPStatusError as e:
+            log.error(
+                f"{request_context} API request to Events Provider failed: {e.response.json()}"
+            )
             raise
 
     async def _log_request(self, request: Request) -> None:

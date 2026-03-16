@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, String, func, text
+from sqlalchemy import JSON, String, func, text, Index
 from sqlalchemy import DateTime as saDateTime
 from sqlalchemy.dialects.postgresql import UUID as pg_uuid, ENUM as pg_ENUM
 from sqlalchemy.orm import Mapped, mapped_column
@@ -12,8 +12,8 @@ from src.models.base_class import Base
 
 
 class OutboxStatus(StrEnum):
-    PENDING = "pending"
-    SENT = "sent"
+    PENDING = "PENDING"
+    SENT = "SENT"
 
 
 class Outbox(Base):
@@ -34,4 +34,13 @@ class Outbox(Base):
         saDateTime(timezone=True),
         server_default=func.timezone("UTC", func.now()),
         server_onupdate=func.timezone("UTC", func.now()),
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_outbox_status",
+            "status",
+            "created_at",
+            postgresql_where=text("status = 'PENDING'"),
+        ),
     )

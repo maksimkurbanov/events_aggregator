@@ -16,8 +16,9 @@ ENV PYTHONPATH="/app"
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev
 
-COPY --chown=appuser:appuser . /app
+COPY --chown=appuser . /app
+RUN chmod +x scripts/run.sh
 
 USER appuser
 
-CMD ["uv", "run", "python", "-m", "src.main"]
+CMD ["bash", "scripts/run.sh"]

@@ -38,7 +38,7 @@ class TicketService:
         return False
 
     async def _acquire_idempotency_lock(self, key: str):
-        """Acquire a transaction‑scoped advisory lock for the given key."""
+        """Acquire a transaction‑scoped advisory lock for the given key"""
         lock_id = create_lock_key(key)
         await self.db.execute(
             text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id}
@@ -54,8 +54,17 @@ class TicketService:
                 raise TicketBadIdempotencyKeyError(
                     "Idempotency key does not match data"
                 )
-            return {"ticket_id": existing_ticket.__dict__["ticket_id"]}
+            return {"ticket_id": existing_ticket.ticket_id}
         return None
+
+    async def _gen_outbox_payload(
+        self, event_name: str, ticket_id: UUID, idempotency_key: str | None = None
+    ) -> dict:
+        return {
+            "message": f"Вы успешно зарегистрированы на мероприятие - {event_name}",
+            "reference_id": str(ticket_id),
+            "idempotency_key": idempotency_key,
+        }
 
     async def buy_ticket(self, ticket_data: dict):
         idempotency_key = ticket_data.get("idempotency_key", None)
@@ -90,14 +99,9 @@ class TicketService:
         ticket_update_data = TicketUpdate.model_validate(ticket_data)
         await tickets_crud.upsert(self.db, ticket_update_data, commit=False)
 
-        outbox_payload = {
-            "ticket_id": str(ticket["ticket_id"]),
-            "user_email": ticket_data["email"],
-            "event_id": str(ticket_data["event_id"]),
-            "seat": ticket_data["seat"],
-            "first_name": ticket_data["first_name"],
-            "last_name": ticket_data["last_name"],
-        }
+        outbox_payload = await self._gen_outbox_payload(
+            event.name, ticket_data["ticket_id"], idempotency_key
+        )
         outbox_entry = OutboxCreate(
             event_type="ticket_purchased", payload=outbox_payload
         )

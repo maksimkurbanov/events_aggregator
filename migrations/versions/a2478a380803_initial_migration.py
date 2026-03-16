@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 3d29340ec99b
+Revision ID: a2478a380803
 Revises:
-Create Date: 2026-03-15 23:29:49.985234
+Create Date: 2026-03-16 14:03:16.311760
 
 """
 
@@ -10,11 +10,10 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "3d29340ec99b"
+revision: str = "a2478a380803"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -70,6 +69,13 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index(
+        "ix_outbox_status",
+        "outbox",
+        ["status", "created_at"],
+        unique=False,
+        postgresql_where=sa.text("status = 'PENDING'"),
+    )
     op.create_table(
         "place",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -121,8 +127,12 @@ def downgrade() -> None:
     op.drop_table("ticket")
     op.drop_table("sync_metadata")
     op.drop_table("place")
+    op.drop_index(
+        "ix_outbox_status",
+        table_name="outbox",
+        postgresql_where=sa.text("status = 'PENDING'"),
+    )
     op.drop_table("outbox")
-    op.execute(text("DROP TYPE outboxstatus"))
     op.drop_table("event_seats_cache")
     op.drop_table("event")
     # ### end Alembic commands ###
