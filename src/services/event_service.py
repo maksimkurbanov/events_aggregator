@@ -92,7 +92,7 @@ class EventService:
         return await self.verified_event(event_id, False)
 
     async def get_seats(
-        self, event_id, client: EventsProviderClient
+        self, event_id, client: EventsProviderClient, use_cache: bool = True
     ) -> EventSeatsResponse:
         """
         Fetch available seats for an event:
@@ -102,11 +102,13 @@ class EventService:
         Return EventSeatsResponse
         """
         event = await self.verified_event(event_id, True)
-        seats = await seats_cache_crud.get_one(
-            self.db,
-            EventSeatsCache.event_id == event.id,
-            EventSeatsCache.updated_at >= datetime.now(UTC) - timedelta(seconds=30),
-        )
+        seats = None
+        if use_cache:
+            seats = await seats_cache_crud.get_one(
+                self.db,
+                EventSeatsCache.event_id == event.id,
+                EventSeatsCache.updated_at >= datetime.now(UTC) - timedelta(seconds=30),
+            )
         if not seats:
             data_from_provider = await client.get_seats(event.id)
             data_from_provider.update({

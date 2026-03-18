@@ -38,6 +38,8 @@ async def lifespan(app: FastAPI):
         CronTrigger(hour=2, minute=0),
         max_instances=1,
         args=["scheduled", get_ctx_db],
+        id="events_sync",
+        replace_existing=True,
     )
     scheduler.add_job(
         process_outbox,

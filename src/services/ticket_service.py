@@ -117,7 +117,9 @@ class TicketService:
             raise TicketBadDataError("Cannot register past registration deadline")
         if not self._validate_seat(ticket_data["seat"], event.place["seats_pattern"]):
             raise TicketBadDataError(f"Invalid seat: {ticket_data['seat']}")
-        seats = await self.events.get_seats(ticket_data["event_id"], self.client)
+        seats = await self.events.get_seats(
+            ticket_data["event_id"], self.client, use_cache=False
+        )
         if ticket_data["seat"] not in seats.available_seats:
             raise TicketBadDataError(f"Seat is unavailable: {ticket_data['seat']}")
 
