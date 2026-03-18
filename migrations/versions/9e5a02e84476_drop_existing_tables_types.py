@@ -20,8 +20,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Step 1: Disable triggers and foreign key checks (PostgreSQL specific)
-    op.execute(text("SET session_replication_role = 'replica';"))
 
     # Step 2: Drop all user tables
     # Get all table names from the public schema (adjust schema if needed)
@@ -52,9 +50,6 @@ def upgrade() -> None:
     enum_types = [row[0] for row in result]
     for enum in enum_types:
         op.execute(text(f"DROP TYPE IF EXISTS {enum} CASCADE;"))
-
-    # Step 4: Re-enable triggers
-    op.execute(text("SET session_replication_role = 'origin';"))
 
     # Optional: If you also want to drop sequences, indexes, etc., they are automatically
     # removed when their owning tables are dropped with CASCADE. However, if you have
