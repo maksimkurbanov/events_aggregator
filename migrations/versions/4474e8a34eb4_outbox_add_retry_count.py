@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "4474e8a34eb4"
-down_revision: Union[str, Sequence[str], None] = "9e5a02e84476"
+down_revision: Union[str, Sequence[str], None] = "a2478a380803"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -27,13 +27,7 @@ def upgrade() -> None:
         sa.Column("retry_count", sa.Integer(), server_default="0", nullable=False),
     )
     # ### end Alembic commands ###
-    op.alter_column(
-        "ticket",
-        "idempotency_key",
-        existing_type=sa.VARCHAR(),
-        type_=sa.String(length=20),
-        existing_nullable=True,
-    )
+
     # Add the CHECK constraint
     op.create_check_constraint("retry_count_non_negative", "outbox", "retry_count >= 0")
 

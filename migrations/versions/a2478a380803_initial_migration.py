@@ -10,6 +10,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import ENUM
 
@@ -21,8 +22,37 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Upgrade schema."""
     conn = op.get_bind()
+    result = conn.execute(
+        text("""
+             SELECT tablename
+             FROM pg_tables
+             WHERE schemaname = 'public'
+               AND tablename != 'alembic_version'
+             """)
+    )
+    tables = [row[0] for row in result]
+
+    # Drop tables in reverse order to handle foreign key dependencies
+    # (simple approach: drop with CASCADE)
+    for table in tables:
+        op.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE;"))
+
+    # Step 3: Drop custom ENUM types
+    result = conn.execute(
+        text("""
+             SELECT typname
+             FROM pg_type
+             WHERE typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+               AND typtype = 'e'
+             """)
+    )
+    enum_types = [row[0] for row in result]
+    for enum in enum_types:
+        op.execute(text(f"DROP TYPE IF EXISTS {enum} CASCADE;"))
+
+    """Upgrade schema."""
+
     result = conn.execute(
         sa.text("SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'outboxstatus')")
     ).scalar()

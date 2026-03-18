@@ -19,7 +19,7 @@ class Ticket(Base):
     first_name: Mapped[str] = mapped_column(String)
     last_name: Mapped[str] = mapped_column(String)
     email: Mapped[EmailStr] = mapped_column(String)
-    idempotency_key: Mapped[str] = mapped_column(String(20), nullable=True, unique=True)
+    idempotency_key: Mapped[str] = mapped_column(String, nullable=True, unique=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.timezone("UTC", func.now())
     )
