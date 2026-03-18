@@ -14,9 +14,9 @@ from src.utils.log import get_logger
 log = get_logger(__name__)
 
 
-def get_engine(database_url: str, echo=False) -> AsyncEngine:
+def get_engine(database_url: str, echo: bool = False) -> AsyncEngine:
     """
-    Creates and returns a SQLAlchemy Engine object for connecting to a database.
+    Create and return a SQLAlchemy Engine object for connecting to a database
 
     Parameters:
         database_url (str): The URL of the database to connect to.
@@ -30,26 +30,28 @@ def get_engine(database_url: str, echo=False) -> AsyncEngine:
     return create_async_engine(database_url, echo=echo, pool_pre_ping=True)
 
 
-def get_local_session(engine: AsyncEngine) -> async_sessionmaker:
+def get_local_session(async_engine: AsyncEngine) -> async_sessionmaker:
     """
-    Database session factory -- create and return an async_sessionmaker
-    object for a database session. Bound to global engine
-      Parameters:
-        engine (AsyncEngine): SQLAlchemy AsyncEngine object
+    Database session factory: create and return an async_sessionmaker object
+
+    Parameters:
+        async_engine (AsyncEngine): SQLAlchemy AsyncEngine object
     Returns:
-        async_sessionmaker: An async_sessionmaker object configured
-        for the DEV database session.
+        async_sessionmaker: An async_sessionmaker object
     """
-    return async_sessionmaker(bind=engine, autoflush=False)
+    return async_sessionmaker(
+        bind=async_engine, autoflush=False, expire_on_commit=False
+    )
 
 
 async def get_db() -> AsyncGenerator[AsyncSession]:
     """
-    Returns a generator that yields a database session for path-operations
-    requiring database access
+    Generator that yields a database session for operations
+    requiring database access. Based on global async_sessionmaker,
+    which in turn is bound to global database engine
 
     Yields:
-        Session: A database session object.
+        AsyncSession: An AsyncSession object.
     """
     log.debug("Getting database session")
     async with async_session_local() as session:
@@ -59,6 +61,14 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
 
 @asynccontextmanager
 async def get_ctx_db() -> AsyncGenerator[AsyncSession]:
+    """
+    Async context manager that yields a database session for operations
+    requiring database access. Based on global async_sessionmaker,
+    which in turn is bound to global database engine
+
+    Yields:
+        AsyncSession: An AsyncSession object.
+    """
     log.debug("Getting database session")
     async with async_session_local() as session:
         yield session

@@ -77,6 +77,8 @@ class EventSeatsResponse(BaseModel):
     event_id: UUID
     available_seats: list[SeatStr]
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class EventSeatsCacheUpdate(BaseModel):
     event_id: UUID

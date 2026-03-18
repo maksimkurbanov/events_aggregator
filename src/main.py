@@ -11,32 +11,19 @@ from fastapi.exceptions import RequestValidationError
 
 from src.api.exception_handlers import (
     validation_exception_handler,
-    event_not_found_handler,
-    ticket_registration_bad_data_handler,
-    ticket_registration_failed_handler,
-    event_not_published_handler,
-    ticket_cancellation_failed_handler,
-    ticket_not_found_handler,
-    ticket_bad_idempotency_key_handler,
+    domain_exception_handler,
 )
 from src.api.routes.events import events_router
+from src.api.routes.exceptions import DomainError
 from src.api.routes.health import health_router
 from src.api.routes.sync import sync_router
 from src.api.routes.tickets import ticket_router
 from src.config import dev_settings
 from src.database.database import get_ctx_db, engine
-from src.services.event_service import EventNotFoundError, EventNotPublishedError
-from src.services.outbox_service import process_outbox
-from src.services.ticket_service import (
-    TicketRegistrationFailedError,
-    TicketCancellationFailedError,
-    TicketBadDataError,
-    TicketNotFoundError,
-    TicketBadIdempotencyKeyError,
-)
+from src.services.outbox_service import process_outbox, reset_failed, delete_old
 
 from src.utils.log import get_logger
-from src.services.sync_service import do_sync_with_lock
+from src.services.sync_service import do_sync
 
 log = get_logger(__name__)
 scheduler = AsyncIOScheduler()
@@ -47,10 +34,10 @@ async def lifespan(app: FastAPI):
     app.state.engine = engine
 
     scheduler.add_job(
-        do_sync_with_lock,
+        do_sync,
         CronTrigger(hour=2, minute=0),
         max_instances=1,
-        args=[app, "scheduled", get_ctx_db],
+        args=["scheduled", get_ctx_db],
     )
     scheduler.add_job(
         process_outbox,
@@ -58,6 +45,21 @@ async def lifespan(app: FastAPI):
         seconds=5,
         max_instances=1,
         id="outbox_processor",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        reset_failed,
+        "interval",
+        minutes=60,
+        max_instances=1,
+        id="reset_failed",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        delete_old,
+        CronTrigger(hour=6, minute=0),
+        max_instances=1,
+        id="delete_old",
         replace_existing=True,
     )
     scheduler.start()
@@ -77,21 +79,9 @@ sentry_sdk.init(
 
 
 app = FastAPI(lifespan=lifespan, title="Events Aggregator API")
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
-app.add_exception_handler(EventNotFoundError, event_not_found_handler)
-app.add_exception_handler(EventNotPublishedError, event_not_published_handler)
-app.add_exception_handler(TicketBadDataError, ticket_registration_bad_data_handler)
-app.add_exception_handler(
-    TicketRegistrationFailedError, ticket_registration_failed_handler
-)
-app.add_exception_handler(
-    TicketCancellationFailedError, ticket_cancellation_failed_handler
-)
-app.add_exception_handler(TicketNotFoundError, ticket_not_found_handler)
-app.add_exception_handler(
-    TicketBadIdempotencyKeyError, ticket_bad_idempotency_key_handler
-)
 
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(DomainError, domain_exception_handler)
 
 app.include_router(sync_router)
 app.include_router(health_router)

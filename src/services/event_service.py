@@ -3,6 +3,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.exceptions import EntityNotFoundError, EntityBadDataError
 from src.crud.events import events_crud
 from src.crud.seats_cache import seats_cache_crud
 from src.external.events_provider import EventsProviderClient
@@ -13,6 +14,7 @@ from src.schemas.event import (
     PaginatedEventResponse,
     EventSeatsCacheUpdate,
     EventSeatsResponse,
+    SingleEventResponse,
 )
 from src.utils.datetime_converter import str_to_dt_utc
 from src.utils.log import get_logger
@@ -21,6 +23,8 @@ log = get_logger(__name__)
 
 
 class EventService:
+    """Interface for handling events-related functionality"""
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -30,7 +34,6 @@ class EventService:
         """
         if not base_url.endswith("/"):
             base_url = base_url + "/"
-        query_params = query_params
         # If 'page' isnt already present in query params, inject 'page=1' for correct pagination
         query_params.setdefault("page", 1)
         query_params_str = "?" + "&".join(f"{k}={v}" for k, v in query_params.items())
@@ -52,7 +55,11 @@ class EventService:
 
     async def get_events(
         self, date_from: str, page: int, page_size: int, url: str, query_params: dict
-    ):
+    ) -> PaginatedEventsResponse:
+        """
+        Fetch events from database that match provided filters
+        Return PaginatedEventsResponse
+        """
         date_from = str_to_dt_utc(date_from)
         offset = (page - 1) * page_size
 
@@ -80,10 +87,20 @@ class EventService:
             results=[PaginatedEventResponse.model_validate(event) for event in events],
         )
 
-    async def get_single_event(self, event_id):
+    async def get_single_event(self, event_id) -> SingleEventResponse:
+        """Fetch single event from database based on event_id"""
         return await self.verified_event(event_id, False)
 
-    async def get_seats(self, event_id, client: EventsProviderClient):
+    async def get_seats(
+        self, event_id, client: EventsProviderClient
+    ) -> EventSeatsResponse:
+        """
+        Fetch available seats for an event:
+        if no cache exists in database for this event - request valid list
+        of seats from Events Provider API, otherwise use cache entry to
+        form response
+        Return EventSeatsResponse
+        """
         event = await self.verified_event(event_id, True)
         seats = await seats_cache_crud.get_one(
             self.db,
@@ -98,17 +115,18 @@ class EventService:
             })
             seats = EventSeatsCacheUpdate.model_validate(data_from_provider)
             await seats_cache_crud.upsert(self.db, seats)
+            await self.db.commit()
 
         return EventSeatsResponse(event_id=seats.event_id, available_seats=seats.seats)
 
 
-class EventNotFoundError(Exception):
-    """Raised when an event cannot be found"""
+class EventNotFoundError(EntityNotFoundError):
+    """Raised when event is not found in database"""
 
     pass
 
 
-class EventNotPublishedError(Exception):
+class EventNotPublishedError(EntityBadDataError):
     """Raised when event is not published"""
 
     pass

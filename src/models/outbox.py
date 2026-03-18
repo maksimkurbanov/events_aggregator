@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, String, func, text, Index
+from sqlalchemy import JSON, String, func, text, Index, Integer, CheckConstraint
 from sqlalchemy import DateTime as saDateTime
 from sqlalchemy.dialects.postgresql import UUID as pg_uuid, ENUM as pg_ENUM
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,6 +26,11 @@ class Outbox(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     status: Mapped[OutboxStatus] = mapped_column(
         pg_ENUM(OutboxStatus), default=OutboxStatus.PENDING
+    )
+    retry_count: Mapped[int] = mapped_column(
+        Integer,
+        CheckConstraint("retry_count >= 0", name="retry_count_non_negative"),
+        server_default="0",
     )
     created_at: Mapped[datetime] = mapped_column(
         saDateTime(timezone=True), server_default=func.timezone("UTC", func.now())

@@ -12,12 +12,15 @@ log = get_logger(__name__)
 
 
 class BaseEventsProviderClient:
+    """Events Provider client base class for Events Provider API"""
+
     def __init__(self, timeout: int = 120) -> None:
         self.base_url = dev_settings.EVENT_PROVIDER_URL + "api/events/"
         self.api_key = dev_settings.LMS_API_KEY
         self.timeout = timeout
 
     def _get_headers(self, **kwargs) -> dict[str, str]:
+        """Create and return headers for the client to use with Events Provider API"""
         headers = {"x-api-key": self.api_key}
         headers.update(**kwargs)
 
@@ -25,8 +28,9 @@ class BaseEventsProviderClient:
 
     def _build_url(self, *args, **kwargs) -> str:
         """
-        Construct full URL to Events_Provider API endpoints:
-        use args as path parameters, kwargs as query parameters
+        Construct full URL to Events Provider API endpoints:
+        use args as path parameters, kwargs as query parameters.
+        Return URL string
         """
         args_str = "/".join(map(str, args)) + "/" if args else ""
         kwargs_str = (
@@ -34,8 +38,10 @@ class BaseEventsProviderClient:
         )
         return self.base_url + args_str + kwargs_str
 
-    async def _perform_request(self, request_coro, request_context: str):
-        """Execute an async request, handle errors, and return JSON."""
+    async def _perform_request(
+        self, request_coro, request_context: str
+    ) -> dict[str, Any]:
+        """Execute an async request, handle errors, and return dict with results"""
         try:
             log.debug(
                 f"Establishing connection to Events Provider API: {request_context}"
@@ -46,11 +52,12 @@ class BaseEventsProviderClient:
             return response.json()
         except httpx.HTTPStatusError as e:
             log.error(
-                f"{request_context} API request to Events Provider failed: {e.response.json()}"
+                f"{request_context} API request to Events Provider failed: {e.response.text}"
             )
             raise
 
     async def _log_request(self, request: Request) -> None:
+        """Log request to Events Provider API"""
         log.debug(f"Request URL: {request.url}")
         log.debug(f"Request Headers: {request.headers}")
         log.debug(f"Request Body: {request.content.decode()}")
@@ -69,28 +76,35 @@ class EventsProviderClient(BaseEventsProviderClient):
 
     async def get_events(
         self, changed_at: datetime, next_url: str | None = None
-    ) -> dict:
+    ) -> dict[str, Any]:
+        """
+        Fetch events from Events Provider API.
+
+        If next_url wasn't provided, use changed_at date as query parameter,
+        otherwise disregard changed_at and use 'next' URL string provided by API, which includes
+        changed_at and cursor query parameters.
+        Return dict with results
+        """
         changed_at_date = changed_at.strftime("%Y-%m-%d")
 
-        # If next_url wasnt provided, use changed_at_date as query parameter,
-        # otherwise disregard changed_at and use 'next' URL string provided by API, which includes
-        # changed_at and cursor query parameters
         if not next_url:
             next_url = self._build_url(changed_at=changed_at_date)
-        # Managing redirects for local dev environment
         if "dev-2" in dev_settings.EVENT_PROVIDER_URL:
             next_url = next_url.replace("http:", "https:")
         return await self._perform_request(self.client.get(next_url), "Get events")
 
     async def register(self, event_id, **kwargs) -> dict[str, Any]:
-        """Buy ticket from the provider"""
+        """Buy ticket from the Events Provider"""
         return await self._perform_request(
             self.client.post(self._build_url(event_id, "register"), json=kwargs),
             "Register",
         )
 
     async def unregister(self, event_id, **kwargs) -> dict[str, Any]:
-        """Cancel ticket with the provider"""
+        """
+        Cancel ticket with the Events Provider
+        Return
+        """
         return await self._perform_request(
             self.client.request(
                 "DELETE", self._build_url(event_id, "unregister"), json=kwargs
@@ -99,7 +113,10 @@ class EventsProviderClient(BaseEventsProviderClient):
         )
 
     async def get_seats(self, event_id) -> dict[str, Any]:
-        """Get list of available seats for an event"""
+        """
+        Fetch available seats for an event
+        Return dictionary with single entry: value is list of seats
+        """
         return await self._perform_request(
             self.client.get(self._build_url(event_id, "seats")), "Get seats"
         )

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     LMS_API_KEY: str
     CAPASHINO_URL: str
     SENTRY_DSN: str
+    OUTBOX_MAX_RETRIES: int
+    OUTBOX_EVENTS_LIFESPAN_HOURS: int
+    IDEMPOTENCY_KEY_LIFESPAN_HOURS: int
 
 
 class DevSettings(Settings):
@@ -44,6 +47,9 @@ class DevSettings(Settings):
     LMS_API_KEY: str = os.getenv("LMS_API_KEY")
     CAPASHINO_URL: str = os.getenv("CAPASHINO_URL")
     SENTRY_DSN: str = os.getenv("SENTRY_DSN")
+    OUTBOX_MAX_RETRIES: int = os.getenv("OUTBOX_MAX_RETRIES")
+    OUTBOX_EVENTS_LIFESPAN_HOURS: int = os.getenv("OUTBOX_EVENTS_LIFESPAN_HOURS")
+    IDEMPOTENCY_KEY_LIFESPAN_HOURS: int = os.getenv("IDEMPOTENCY_KEY_LIFESPAN_HOURS")
 
 
 dev_settings = DevSettings()
