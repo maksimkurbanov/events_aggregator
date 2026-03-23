@@ -12,10 +12,12 @@ from src.utils.log import get_logger
 log = get_logger(__name__)
 
 events_provider_requests_total = Counter(
-    "http_outgoing_requests_total", "Total outgoing requests", ["endpoint", "status"]
+    "events_provider_requests_total", "Total outgoing requests", ["endpoint", "status"]
 )
 events_provider_request_duration_seconds = Histogram(
-    "http_outgoing_duration_seconds", "Outgoing request duration", ["endpoint"]
+    "events_provider_request_duration_seconds",
+    "Outgoing request duration",
+    ["endpoint"],
 )
 
 

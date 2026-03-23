@@ -31,9 +31,11 @@ from src.utils.log import get_logger
 
 log = get_logger(__name__)
 
-tickets_created_total = Counter("tickets_created", "Total number of tickets bought")
+tickets_created_total = Counter(
+    "tickets_created_total", "Total number of tickets bought"
+)
 tickets_cancelled_total = Counter(
-    "ticket_cancelled", "Total number of tickets cancelled"
+    "tickets_cancelled_total", "Total number of tickets cancelled"
 )
 
 
