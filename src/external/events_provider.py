@@ -1,20 +1,28 @@
+import re
+import time
 from datetime import datetime
 from typing import Any
 
-
 import httpx
-from httpx import Request
+from prometheus_client import Counter, Histogram
 
 from src.config import dev_settings
 from src.utils.log import get_logger
 
 log = get_logger(__name__)
 
+events_provider_requests_total = Counter(
+    "http_outgoing_requests_total", "Total outgoing requests", ["endpoint", "status"]
+)
+events_provider_request_duration_seconds = Histogram(
+    "http_outgoing_duration_seconds", "Outgoing request duration", ["endpoint"]
+)
+
 
 class BaseEventsProviderClient:
     """Events Provider client base class for Events Provider API"""
 
-    def __init__(self, timeout: int = 120) -> None:
+    def __init__(self, timeout: int = 5) -> None:
         self.base_url = dev_settings.EVENT_PROVIDER_URL + "api/events/"
         self.api_key = dev_settings.LMS_API_KEY
         self.timeout = timeout
@@ -56,11 +64,44 @@ class BaseEventsProviderClient:
             )
             raise
 
-    async def _log_request(self, request: Request) -> None:
-        """Log request to Events Provider API"""
+    async def _log_request(self, request: httpx.Request) -> None:
+        """Log details of request to Events Provider API"""
         log.debug(f"Request URL: {request.url}")
         log.debug(f"Request Headers: {request.headers}")
         log.debug(f"Request Body: {request.content.decode()}")
+
+    def _normalize_url(self, url: str) -> str:
+        log.debug("Incoming URL in normalize url: %s", url)
+        normalized_url = url
+
+        event_id_pattern = (
+            re.compile(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.IGNORECASE),
+            "{uuid}",
+        )
+        date_pattern = (re.compile(r"\d{4}-\d{2}-\d{2}"), "{date}")
+        cursor_pattern = (re.compile(r"&cursor=(.)*"), "")
+        patterns = (event_id_pattern, date_pattern, cursor_pattern)
+
+        for regex, repl in patterns:
+            normalized_url = regex.sub(repl, normalized_url)
+        log.debug("Normalized URL: %s", normalized_url)
+        return normalized_url
+
+    async def _outgoing_request_hook(self, request: httpx.Request):
+        request.extensions["start_time"] = time.monotonic()
+
+    async def _outgoing_response_hook(self, response: httpx.Response):
+        start = response.request.extensions.get("start_time")
+        if start:
+            endpoint = self._normalize_url(str(response.request.url))
+            log.debug("Endpoint: %s", endpoint)
+            duration = time.monotonic() - start
+            events_provider_requests_total.labels(
+                endpoint=endpoint, status=response.status_code
+            ).inc()
+            events_provider_request_duration_seconds.labels(
+                endpoint=endpoint,
+            ).observe(duration)
 
 
 class EventsProviderClient(BaseEventsProviderClient):
@@ -71,7 +112,10 @@ class EventsProviderClient(BaseEventsProviderClient):
         self.client = httpx.AsyncClient(
             timeout=self.timeout,
             headers=self._get_headers(),
-            event_hooks={"request": [self._log_request]},
+            event_hooks={
+                "request": [self._log_request, self._outgoing_request_hook],
+                "response": [self._outgoing_response_hook],
+            },
         )
 
     async def get_events(

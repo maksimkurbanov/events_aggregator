@@ -18,7 +18,7 @@ BASE_DELAY = 1
 MAX_RETRIES = dev_settings.OUTBOX_MAX_RETRIES
 
 
-async def process_outbox() -> None:
+async def outbox_process_events() -> None:
     """
     Fetch pending Outbox events from DB, attempt sending them to Capashino
     Notifications API, if successful mark as sent in DB
@@ -63,6 +63,7 @@ async def process_outbox() -> None:
                         )
                         if event.retry_count == MAX_RETRIES:
                             log.error(f"All retries exhausted for outbox {event.id}")
+                            break
                         else:
                             delay = BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(
                                 0, 1
@@ -71,7 +72,7 @@ async def process_outbox() -> None:
         await db.commit()
 
 
-async def reset_failed() -> None:
+async def outbox_reset_failed_events() -> None:
     """
     Reset retry_count back to 0 for all Outbox events that reached max_retries
     attempts, yet are still in pending status in DB
@@ -93,7 +94,7 @@ async def reset_failed() -> None:
         await db.commit()
 
 
-async def delete_old() -> None:
+async def outbox_delete_old_events() -> None:
     """
     Delete all Outbox events that were successfully sent
     and are older than OUTBOX_EVENTS_LIFESPAN_HOURS

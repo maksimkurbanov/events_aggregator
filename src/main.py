@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import sentry_sdk
+from prometheus_client import start_http_server
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -16,11 +17,17 @@ from src.api.exception_handlers import (
 from src.api.routes.events import events_router
 from src.api.routes.exceptions import DomainError
 from src.api.routes.health import health_router
+from src.api.routes.metrics import metrics_router
 from src.api.routes.sync import sync_router
 from src.api.routes.tickets import ticket_router
 from src.config import dev_settings
 from src.database.database import get_ctx_db, engine
-from src.services.outbox_service import process_outbox, reset_failed, delete_old
+from src.middleware.metrics_middleware import MetricsMiddleware
+from src.services.outbox_service import (
+    outbox_process_events,
+    outbox_reset_failed_events,
+    outbox_delete_old_events,
+)
 
 from src.utils.log import get_logger
 from src.services.sync_service import do_sync
@@ -42,26 +49,26 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
-        process_outbox,
+        outbox_process_events,
         "interval",
         seconds=5,
         max_instances=1,
-        id="outbox_processor",
+        id="outbox_process_events",
         replace_existing=True,
     )
     scheduler.add_job(
-        reset_failed,
+        outbox_reset_failed_events,
         "interval",
         minutes=60,
         max_instances=1,
-        id="reset_failed",
+        id="outbox_reset_failed_events",
         replace_existing=True,
     )
     scheduler.add_job(
-        delete_old,
+        outbox_delete_old_events,
         CronTrigger(hour=6, minute=0),
         max_instances=1,
-        id="delete_old",
+        id="outbox_delete_old_events",
         replace_existing=True,
     )
     scheduler.start()
@@ -73,8 +80,6 @@ async def lifespan(app: FastAPI):
 
 sentry_sdk.init(
     dsn=dev_settings.SENTRY_DSN,
-    # Set traces_sample_rate to 1.0 to capture 100%
-    # of traces for performance monitoring.
     traces_sample_rate=1.0,
     integrations=[FastApiIntegration()],
 )
@@ -82,16 +87,20 @@ sentry_sdk.init(
 
 app = FastAPI(lifespan=lifespan, title="Events Aggregator API")
 
+app.add_middleware(MetricsMiddleware)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(DomainError, domain_exception_handler)
+
 
 app.include_router(sync_router)
 app.include_router(health_router)
 app.include_router(events_router)
 app.include_router(ticket_router)
+app.include_router(metrics_router)
 
 
 async def main():
+    start_http_server(9090)
     config = uvicorn.Config(
         app=app, host="0.0.0.0", port=dev_settings.SERVER_PORT, reload=True
     )

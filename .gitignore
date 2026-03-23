@@ -147,7 +147,7 @@ venv.bak/
 /site
 
 # test file
-fortests.py
+playground.py
 
 # mypy
 .mypy_cache/

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from prometheus_client import Counter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.exceptions import EntityNotFoundError, EntityBadDataError
@@ -22,6 +23,10 @@ from src.utils.log import get_logger
 log = get_logger(__name__)
 
 
+cache_hits_total = Counter("cache_hits_total", "Cache hits")
+cache_misses_total = Counter("cache_misses_total", "Cache misses")
+
+
 class EventService:
     """Interface for handling events-related functionality"""
 
@@ -34,7 +39,6 @@ class EventService:
         """
         if not base_url.endswith("/"):
             base_url = base_url + "/"
-        # If 'page' isnt already present in query params, inject 'page=1' for correct pagination
         query_params.setdefault("page", 1)
         query_params_str = "?" + "&".join(f"{k}={v}" for k, v in query_params.items())
         return base_url + query_params_str
@@ -109,6 +113,7 @@ class EventService:
                 EventSeatsCache.event_id == event.id,
                 EventSeatsCache.updated_at >= datetime.now(UTC) - timedelta(seconds=30),
             )
+            cache_hits_total.inc() if seats else cache_misses_total.inc()
         if not seats:
             data_from_provider = await client.get_seats(event.id)
             data_from_provider.update({
@@ -120,6 +125,9 @@ class EventService:
             await self.db.commit()
 
         return EventSeatsResponse(event_id=seats.event_id, available_seats=seats.seats)
+
+    async def get_events_count(self):
+        return await events_crud.count_rows(self.db)
 
 
 class EventNotFoundError(EntityNotFoundError):

@@ -4,7 +4,7 @@ from typing import TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import inspect, select, update
+from sqlalchemy import inspect, select, update, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -186,3 +186,8 @@ class CRUDRepository:
         log.debug(f"Deleting record for {self._name} with id {pk_values}")
         await db.delete(db_obj)
         return None
+
+    async def count_rows(self, db: AsyncSession, *args, **kwargs) -> int | None:
+        stmt = select(func.count()).select_from(self._model.__table__)
+        result = await db.execute(stmt)
+        return result.scalar()

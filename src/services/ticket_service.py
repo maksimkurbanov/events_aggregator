@@ -2,6 +2,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from prometheus_client import Counter
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
@@ -29,6 +30,11 @@ from src.utils.create_lock_key import create_lock_key
 from src.utils.log import get_logger
 
 log = get_logger(__name__)
+
+tickets_created_total = Counter("tickets_created", "Total number of tickets bought")
+tickets_cancelled_total = Counter(
+    "ticket_cancelled", "Total number of tickets cancelled"
+)
 
 
 class TicketService:
@@ -145,6 +151,7 @@ class TicketService:
         )
         await outbox_crud.create(self.db, outbox_entry)
         await self.db.commit()
+        tickets_created_total.inc()
         return ticket
 
     async def delete_ticket(self, ticket_id: UUID) -> JSONResponse:
@@ -166,6 +173,7 @@ class TicketService:
         else:
             await tickets_crud.delete(self.db, ticket)
             await self.db.commit()
+            tickets_cancelled_total.inc()
             return JSONResponse(status_code=200, content={"success": True})
 
 
